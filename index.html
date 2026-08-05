@@ -1,0 +1,805 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Lista de la Compra</title>
+
+<!-- PWA -->
+<link rel="manifest" href="manifest.json" />
+<meta name="theme-color" content="#35533E" />
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="La Compra" />
+<link rel="icon" href="icons/icon-192.png" />
+
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+
+<style>
+  :root {
+    --paper: #F7F3E8;
+    --paper-raised: #FFFDF7;
+    --ink: #21301F;
+    --ink-soft: #5B6B57;
+    --primary: #35533E;
+    --primary-dark: #263C2C;
+    --accent: #D9A62E;
+    --line: #C9BFA0;
+    --danger: #8B3A3A;
+    --done: #7C8F73;
+  }
+
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: 'IBM Plex Mono', monospace;
+    padding-bottom: 96px;
+    min-height: 100vh;
+  }
+
+  h1, h2, .display {
+    font-family: 'Space Grotesk', sans-serif;
+  }
+
+  /* ---------- Header con borde rasgado, estilo cabecera de ticket ---------- */
+  header {
+    background: var(--primary);
+    color: var(--paper);
+    padding: 28px 20px 22px;
+    position: relative;
+    text-align: center;
+  }
+
+  header h1 {
+    margin: 0 0 4px;
+    font-size: 1.5rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+  }
+
+  header .subtitle {
+    font-size: 0.8rem;
+    color: #CFE0CE;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .torn-edge {
+    position: absolute;
+    left: 0; right: 0; bottom: -1px;
+    height: 14px;
+    background: var(--primary);
+    clip-path: polygon(
+      0% 0%, 4% 100%, 8% 0%, 12% 100%, 16% 0%, 20% 100%, 24% 0%, 28% 100%,
+      32% 0%, 36% 100%, 40% 0%, 44% 100%, 48% 0%, 52% 100%, 56% 0%, 60% 100%,
+      64% 0%, 68% 100%, 72% 0%, 76% 100%, 80% 0%, 84% 100%, 88% 0%, 92% 100%,
+      96% 0%, 100% 100%, 100% 0%
+    );
+  }
+
+  /* ---------- Contenedor tipo recibo ---------- */
+  main {
+    max-width: 480px;
+    margin: 0 auto;
+    padding: 28px 16px 0;
+  }
+
+  .ticket {
+    background: var(--paper-raised);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    padding: 18px 16px;
+    box-shadow: 0 2px 0 rgba(33, 48, 32, 0.05);
+  }
+
+  .section-label {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+    margin: 22px 0 10px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .section-label:first-child { margin-top: 0; }
+
+  .section-label .count {
+    background: var(--accent);
+    color: var(--primary-dark);
+    border-radius: 20px;
+    padding: 1px 8px;
+    font-size: 0.7rem;
+  }
+
+  ul.items { list-style: none; margin: 0; padding: 0; }
+
+  .item-row {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    padding: 9px 0;
+    border-bottom: 1px dotted var(--line);
+    font-size: 0.92rem;
+  }
+
+  .item-row:last-child { border-bottom: none; }
+
+  .check-btn {
+    flex-shrink: 0;
+    width: 20px; height: 20px;
+    border: 1.5px solid var(--primary);
+    border-radius: 4px;
+    background: transparent;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    padding: 0;
+    color: var(--primary);
+    font-size: 0.75rem;
+  }
+
+  .item-row.done .check-btn {
+    background: var(--done);
+    border-color: var(--done);
+    color: white;
+  }
+
+  .item-name { flex-shrink: 0; }
+  .item-row.done .item-name { text-decoration: line-through; color: var(--ink-soft); }
+
+  .leader {
+    flex: 1;
+    border-bottom: 1px dotted var(--line);
+    margin-bottom: 4px;
+    min-width: 12px;
+  }
+
+  .item-qty {
+    flex-shrink: 0;
+    color: var(--ink-soft);
+    font-size: 0.85rem;
+  }
+
+  .item-added-by {
+    flex-basis: 100%;
+    font-size: 0.68rem;
+    color: var(--ink-soft);
+    opacity: 0.7;
+    padding-left: 28px;
+    margin-top: -4px;
+  }
+
+  .del-btn {
+    flex-shrink: 0;
+    background: none;
+    border: none;
+    color: var(--danger);
+    font-size: 1rem;
+    cursor: pointer;
+    padding: 0 2px;
+    opacity: 0.6;
+  }
+  .del-btn:hover { opacity: 1; }
+
+  .empty-msg {
+    color: var(--ink-soft);
+    font-size: 0.85rem;
+    padding: 6px 0 14px;
+    font-style: italic;
+  }
+
+  .clear-done-btn {
+    display: block;
+    margin: 14px auto 0;
+    background: none;
+    border: 1px solid var(--line);
+    color: var(--ink-soft);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.75rem;
+    padding: 6px 14px;
+    border-radius: 20px;
+    cursor: pointer;
+  }
+
+  /* ---------- Formulario de añadir ---------- */
+  form.add-form {
+    display: flex;
+    gap: 8px;
+    margin-top: 18px;
+  }
+
+  form.add-form input[type="text"] {
+    flex: 1;
+    min-width: 0;
+    padding: 12px 12px;
+    border: 1.5px solid var(--line);
+    border-radius: 8px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.95rem;
+    background: var(--paper-raised);
+    color: var(--ink);
+  }
+
+  form.add-form input.qty {
+    flex: 0 0 68px;
+  }
+
+  form.add-form input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+  form.add-form button {
+    flex-shrink: 0;
+    background: var(--primary);
+    color: var(--paper);
+    border: none;
+    border-radius: 8px;
+    width: 46px;
+    font-size: 1.3rem;
+    cursor: pointer;
+  }
+
+  /* ---------- Botón flotante escanear ticket ---------- */
+  .scan-fab {
+    position: fixed;
+    right: 20px;
+    bottom: 24px;
+    background: var(--accent);
+    color: var(--primary-dark);
+    border: none;
+    border-radius: 30px;
+    padding: 14px 20px;
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 700;
+    font-size: 0.85rem;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    box-shadow: 0 4px 14px rgba(33, 48, 32, 0.25);
+    cursor: pointer;
+    z-index: 20;
+  }
+
+  /* ---------- Modales ---------- */
+  .modal-overlay {
+    position: fixed; inset: 0;
+    background: rgba(33, 48, 32, 0.55);
+    display: flex; align-items: flex-end;
+    z-index: 50;
+  }
+  .modal-overlay.hidden { display: none; }
+
+  .modal {
+    background: var(--paper);
+    width: 100%;
+    max-width: 480px;
+    margin: 0 auto;
+    border-radius: 16px 16px 0 0;
+    padding: 22px 20px calc(22px + env(safe-area-inset-bottom));
+    max-height: 85vh;
+    overflow-y: auto;
+  }
+
+  .modal h2 {
+    font-size: 1.1rem;
+    margin: 0 0 6px;
+  }
+
+  .modal p.hint {
+    color: var(--ink-soft);
+    font-size: 0.82rem;
+    margin: 0 0 16px;
+  }
+
+  .modal input[type="text"] {
+    width: 100%;
+    padding: 12px;
+    border: 1.5px solid var(--line);
+    border-radius: 8px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.95rem;
+    margin-bottom: 12px;
+    background: var(--paper-raised);
+    color: var(--ink);
+  }
+
+  .modal .primary-btn {
+    width: 100%;
+    background: var(--primary);
+    color: var(--paper);
+    border: none;
+    border-radius: 8px;
+    padding: 13px;
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 700;
+    font-size: 0.95rem;
+    cursor: pointer;
+  }
+
+  .modal .secondary-btn {
+    width: 100%;
+    background: none;
+    border: none;
+    color: var(--ink-soft);
+    padding: 10px;
+    font-size: 0.85rem;
+    cursor: pointer;
+  }
+
+  .scan-status {
+    text-align: center;
+    padding: 30px 10px;
+    color: var(--ink-soft);
+    font-size: 0.9rem;
+  }
+
+  .detected-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 0;
+    border-bottom: 1px dotted var(--line);
+  }
+
+  .detected-item input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--primary); }
+  .detected-item .name { flex: 1; font-size: 0.92rem; }
+  .detected-item .qty { color: var(--ink-soft); font-size: 0.82rem; }
+
+  .toast {
+    position: fixed;
+    bottom: 96px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--primary-dark);
+    color: var(--paper);
+    padding: 10px 18px;
+    border-radius: 20px;
+    font-size: 0.82rem;
+    z-index: 60;
+    opacity: 0;
+    transition: opacity 0.25s ease;
+    pointer-events: none;
+    max-width: 90%;
+    text-align: center;
+  }
+  .toast.show { opacity: 1; }
+
+  .install-banner {
+    max-width: 480px;
+    margin: 14px auto 0;
+    padding: 0 16px;
+  }
+  .install-banner button {
+    width: 100%;
+    background: var(--paper-raised);
+    border: 1.5px dashed var(--primary);
+    color: var(--primary);
+    border-radius: 10px;
+    padding: 11px;
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 700;
+    font-size: 0.85rem;
+    cursor: pointer;
+  }
+  .install-banner.hidden { display: none; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🧺 Lista de la Compra</h1>
+  <div class="subtitle">Compartida en familia · en tiempo real</div>
+  <div class="torn-edge"></div>
+</header>
+
+<div id="installBanner" class="install-banner hidden">
+  <button id="installBtn">📲 Instalar en este móvil</button>
+</div>
+
+<main>
+  <div class="ticket">
+    <div class="section-label">Pendientes <span class="count" id="pendingCount">0</span></div>
+    <ul class="items" id="pendingList"></ul>
+    <div id="pendingEmpty" class="empty-msg">No hay nada pendiente. ¡Buen trabajo!</div>
+
+    <div class="section-label">Comprados <span class="count" id="doneCount">0</span></div>
+    <ul class="items" id="doneList"></ul>
+    <div id="doneEmpty" class="empty-msg">Nada marcado todavía.</div>
+    <button id="clearDoneBtn" class="clear-done-btn">Vaciar comprados</button>
+
+    <form class="add-form" id="addForm">
+      <input type="text" id="itemNameInput" placeholder="Añadir artículo..." autocomplete="off" required />
+      <input type="text" id="itemQtyInput" class="qty" placeholder="cant." autocomplete="off" />
+      <button type="submit" aria-label="Añadir">+</button>
+    </form>
+  </div>
+</main>
+
+<button class="scan-fab" id="scanFab">📷 Escanear ticket</button>
+
+<!-- Modal: nombre de usuario (primera vez) -->
+<div class="modal-overlay hidden" id="nameModalOverlay">
+  <div class="modal">
+    <h2>¿Cómo te llamas?</h2>
+    <p class="hint">Así sabemos quién añadió cada cosa a la lista.</p>
+    <input type="text" id="nameInput" placeholder="Tu nombre" />
+    <button class="primary-btn" id="nameSaveBtn">Guardar</button>
+  </div>
+</div>
+
+<!-- Modal: escanear ticket -->
+<div class="modal-overlay hidden" id="scanModalOverlay">
+  <div class="modal">
+    <h2>Escanear ticket</h2>
+    <p class="hint">Haz una foto al ticket de compra y Gemini detectará los artículos.</p>
+    <div id="scanBody">
+      <input type="file" id="scanFileInput" accept="image/*" capture="environment" />
+    </div>
+    <button class="secondary-btn" id="scanCloseBtn">Cerrar</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.17.0/firebase-app.js";
+  import {
+    getFirestore, collection, addDoc, updateDoc, deleteDoc, doc,
+    onSnapshot, query, orderBy, serverTimestamp, writeBatch, getDocs, where
+  } from "https://www.gstatic.com/firebasejs/12.17.0/firebase-firestore.js";
+
+  // ---------------------------------------------------------------------
+  // 1) CONFIGURACIÓN DE FIREBASE — datos de tu proyecto
+  // ---------------------------------------------------------------------
+  const firebaseConfig = {
+    apiKey: "AIzaSyCpOLUywfVc-lQuqarsS6ExSMvc3bnjG7A",
+    authDomain: "lista-compra-familia-6d423.firebaseapp.com",
+    projectId: "lista-compra-familia-6d423",
+    storageBucket: "lista-compra-familia-6d423.firebasestorage.app",
+    messagingSenderId: "547108428424",
+    appId: "1:547108428424:web:126d3be448e11e9c50dd3d"
+  };
+
+  // TODO: pega aquí tu clave de sitio de reCAPTCHA v3 cuando la tengas
+  // (Firebase console → AI Logic → App Check). Sin ella, la lista funciona
+  // igual, pero el botón "Escanear ticket" mostrará un aviso.
+  const RECAPTCHA_SITE_KEY = "PEGA_AQUI_TU_CLAVE_RECAPTCHA";
+
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+  const itemsRef = collection(db, "items");
+
+  // ---------------------------------------------------------------------
+  // 2) Nombre de usuario (guardado localmente en este móvil)
+  // ---------------------------------------------------------------------
+  const nameModal = document.getElementById("nameModalOverlay");
+  const nameInput = document.getElementById("nameInput");
+  document.getElementById("nameSaveBtn").addEventListener("click", () => {
+    const val = nameInput.value.trim();
+    if (!val) return;
+    localStorage.setItem("listaCompra_userName", val);
+    nameModal.classList.add("hidden");
+  });
+
+  function getUserName() {
+    return localStorage.getItem("listaCompra_userName") || "Alguien";
+  }
+
+  if (!localStorage.getItem("listaCompra_userName")) {
+    nameModal.classList.remove("hidden");
+  }
+
+  // ---------------------------------------------------------------------
+  // 3) Lista en tiempo real (Firestore)
+  // ---------------------------------------------------------------------
+  const pendingList = document.getElementById("pendingList");
+  const doneList = document.getElementById("doneList");
+  const pendingCount = document.getElementById("pendingCount");
+  const doneCount = document.getElementById("doneCount");
+  const pendingEmpty = document.getElementById("pendingEmpty");
+  const doneEmpty = document.getElementById("doneEmpty");
+
+  const q = query(itemsRef, orderBy("createdAt", "asc"));
+  onSnapshot(q, (snapshot) => {
+    pendingList.innerHTML = "";
+    doneList.innerHTML = "";
+    let pending = 0, done = 0;
+
+    snapshot.forEach((docSnap) => {
+      const item = docSnap.data();
+      const row = renderItemRow(docSnap.id, item);
+      if (item.checked) {
+        doneList.appendChild(row);
+        done++;
+      } else {
+        pendingList.appendChild(row);
+        pending++;
+      }
+    });
+
+    pendingCount.textContent = pending;
+    doneCount.textContent = done;
+    pendingEmpty.style.display = pending === 0 ? "block" : "none";
+    doneEmpty.style.display = done === 0 ? "block" : "none";
+  }, (err) => {
+    console.error(err);
+    showToast("No se pudo conectar con la base de datos.");
+  });
+
+  function renderItemRow(id, item) {
+    const li = document.createElement("li");
+    li.className = "item-row" + (item.checked ? " done" : "");
+
+    const checkBtn = document.createElement("button");
+    checkBtn.className = "check-btn";
+    checkBtn.textContent = item.checked ? "✓" : "";
+    checkBtn.addEventListener("click", () => {
+      updateDoc(doc(db, "items", id), { checked: !item.checked });
+    });
+
+    const name = document.createElement("span");
+    name.className = "item-name";
+    name.textContent = item.name;
+
+    const leader = document.createElement("span");
+    leader.className = "leader";
+
+    const qty = document.createElement("span");
+    qty.className = "item-qty";
+    qty.textContent = item.quantity || "";
+
+    const delBtn = document.createElement("button");
+    delBtn.className = "del-btn";
+    delBtn.textContent = "✕";
+    delBtn.addEventListener("click", () => deleteDoc(doc(db, "items", id)));
+
+    li.appendChild(checkBtn);
+    li.appendChild(name);
+    li.appendChild(leader);
+    li.appendChild(qty);
+    li.appendChild(delBtn);
+
+    if (item.addedBy) {
+      const by = document.createElement("span");
+      by.className = "item-added-by";
+      by.textContent = "añadido por " + item.addedBy;
+      li.appendChild(by);
+    }
+
+    return li;
+  }
+
+  // ---------------------------------------------------------------------
+  // 4) Añadir artículo manualmente
+  // ---------------------------------------------------------------------
+  document.getElementById("addForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const nameEl = document.getElementById("itemNameInput");
+    const qtyEl = document.getElementById("itemQtyInput");
+    const name = nameEl.value.trim();
+    if (!name) return;
+
+    await addDoc(itemsRef, {
+      name,
+      quantity: qtyEl.value.trim(),
+      checked: false,
+      addedBy: getUserName(),
+      createdAt: serverTimestamp()
+    });
+
+    nameEl.value = "";
+    qtyEl.value = "";
+    nameEl.focus();
+  });
+
+  // ---------------------------------------------------------------------
+  // 5) Vaciar comprados
+  // ---------------------------------------------------------------------
+  document.getElementById("clearDoneBtn").addEventListener("click", async () => {
+    const snap = await getDocs(query(itemsRef, where("checked", "==", true)));
+    if (snap.empty) return;
+    const batch = writeBatch(db);
+    snap.forEach((d) => batch.delete(d.ref));
+    await batch.commit();
+    showToast("Comprados eliminados");
+  });
+
+  // ---------------------------------------------------------------------
+  // 6) Escanear ticket con Gemini (Firebase AI Logic)
+  // ---------------------------------------------------------------------
+  const scanModal = document.getElementById("scanModalOverlay");
+  const scanBody = document.getElementById("scanBody");
+  const scanFileInput = document.getElementById("scanFileInput");
+
+  document.getElementById("scanFab").addEventListener("click", () => {
+    scanBody.innerHTML = "";
+    scanBody.appendChild(scanFileInput);
+    scanFileInput.value = "";
+    scanModal.classList.remove("hidden");
+  });
+  document.getElementById("scanCloseBtn").addEventListener("click", () => {
+    scanModal.classList.add("hidden");
+  });
+
+  let aiModel = null;
+  async function ensureAIModel() {
+    if (aiModel) return aiModel;
+    if (RECAPTCHA_SITE_KEY === "PEGA_AQUI_TU_CLAVE_RECAPTCHA") {
+      throw new Error(
+        "Falta configurar la clave de reCAPTCHA. Ve a Firebase console → AI Logic → App Check, cópiala y pégala en index.html."
+      );
+    }
+    const { initializeAppCheck, ReCaptchaV3Provider } = await import(
+      "https://www.gstatic.com/firebasejs/12.17.0/firebase-app-check.js"
+    );
+    const { getAI, getGenerativeModel, GoogleAIBackend, Schema } = await import(
+      "https://www.gstatic.com/firebasejs/12.17.0/firebase-ai.js"
+    );
+
+    initializeAppCheck(app, {
+      provider: new ReCaptchaV3Provider(RECAPTCHA_SITE_KEY),
+      isTokenAutoRefreshEnabled: true
+    });
+
+    const ai = getAI(app, { backend: new GoogleAIBackend() });
+
+    const itemsSchema = Schema.object({
+      properties: {
+        articulos: Schema.array({
+          items: Schema.object({
+            properties: {
+              nombre: Schema.string(),
+              cantidad: Schema.string()
+            }
+          })
+        })
+      }
+    });
+
+    aiModel = getGenerativeModel(ai, {
+      model: "gemini-3.1-flash-lite",
+      generationConfig: {
+        responseMimeType: "application/json",
+        responseSchema: itemsSchema
+      }
+    });
+    return aiModel;
+  }
+
+  scanFileInput.addEventListener("change", async () => {
+    const file = scanFileInput.files[0];
+    if (!file) return;
+
+    scanBody.innerHTML = '<div class="scan-status">Leyendo el ticket con IA…</div>';
+
+    try {
+      const model = await ensureAIModel();
+      const base64 = await fileToBase64(file);
+
+      const result = await model.generateContent([
+        {
+          inlineData: { mimeType: file.type || "image/jpeg", data: base64 }
+        },
+        "Este es un ticket de la compra de un supermercado español. Extrae la lista de artículos comprados con su cantidad (si no hay cantidad clara, deja el campo vacío). Ignora totales, IVA, descuentos y datos de la tienda."
+      ]);
+
+      const text = result.response.text();
+      const parsed = JSON.parse(text);
+      const articulos = parsed.articulos || [];
+
+      if (articulos.length === 0) {
+        scanBody.innerHTML = '<div class="scan-status">No se detectaron artículos. Prueba con una foto más nítida.</div>';
+        return;
+      }
+
+      renderScanResults(articulos);
+    } catch (err) {
+      console.error(err);
+      scanBody.innerHTML = `<div class="scan-status">${err.message || "No se pudo leer el ticket."}</div>`;
+    }
+  });
+
+  function renderScanResults(articulos) {
+    scanBody.innerHTML = "";
+    const list = document.createElement("div");
+    articulos.forEach((a, i) => {
+      const row = document.createElement("label");
+      row.className = "detected-item";
+      row.innerHTML = `
+        <input type="checkbox" checked data-idx="${i}" />
+        <span class="name">${escapeHtml(a.nombre || "")}</span>
+        <span class="qty">${escapeHtml(a.cantidad || "")}</span>
+      `;
+      list.appendChild(row);
+    });
+    scanBody.appendChild(list);
+
+    const addBtn = document.createElement("button");
+    addBtn.className = "primary-btn";
+    addBtn.style.marginTop = "14px";
+    addBtn.textContent = "Añadir seleccionados a la lista";
+    addBtn.addEventListener("click", async () => {
+      const checks = list.querySelectorAll("input[type=checkbox]:checked");
+      const batch = writeBatch(db);
+      checks.forEach((c) => {
+        const a = articulos[Number(c.dataset.idx)];
+        const ref = doc(itemsRef);
+        batch.set(ref, {
+          name: a.nombre || "Artículo",
+          quantity: a.cantidad || "",
+          checked: false,
+          addedBy: getUserName() + " (ticket)",
+          createdAt: serverTimestamp()
+        });
+      });
+      await batch.commit();
+      scanModal.classList.add("hidden");
+      showToast(`${checks.length} artículos añadidos`);
+    });
+    scanBody.appendChild(addBtn);
+  }
+
+  function fileToBase64(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result.split(",")[1]);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }
+
+  function escapeHtml(str) {
+    const d = document.createElement("div");
+    d.textContent = str;
+    return d.innerHTML;
+  }
+
+  // ---------------------------------------------------------------------
+  // 7) Aviso pequeño (toast)
+  // ---------------------------------------------------------------------
+  let toastTimer = null;
+  function showToast(msg) {
+    const toast = document.getElementById("toast");
+    toast.textContent = msg;
+    toast.classList.add("show");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => toast.classList.remove("show"), 2400);
+  }
+
+  // ---------------------------------------------------------------------
+  // 8) Instalar como app (Android/Chrome). En iPhone se instala desde
+  //    Safari → Compartir → "Añadir a pantalla de inicio".
+  // ---------------------------------------------------------------------
+  let deferredPrompt = null;
+  window.addEventListener("beforeinstallprompt", (e) => {
+    e.preventDefault();
+    deferredPrompt = e;
+    document.getElementById("installBanner").classList.remove("hidden");
+  });
+  document.getElementById("installBtn").addEventListener("click", async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    await deferredPrompt.userChoice;
+    deferredPrompt = null;
+    document.getElementById("installBanner").classList.add("hidden");
+  });
+
+  // ---------------------------------------------------------------------
+  // 9) Registrar el service worker (PWA instalable + shell offline)
+  // ---------------------------------------------------------------------
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => {
+      navigator.serviceWorker.register("sw.js").catch(console.error);
+    });
+  }
+</script>
+
+</body>
+</html>
