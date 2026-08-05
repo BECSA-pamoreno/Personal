@@ -154,6 +154,7 @@
 
   .item-row {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     gap: 10px;
     padding: 11px 0;
@@ -183,7 +184,7 @@
     color: white;
   }
 
-  .item-name { flex: 1; font-weight: 500; }
+  .item-name { flex: 1; min-width: 120px; font-weight: 500; }
   .item-row.done .item-name { color: var(--ink-faint); text-decoration: line-through; }
 
   .leader { display: none; }
