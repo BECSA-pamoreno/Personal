@@ -399,6 +399,13 @@
     margin-left: 30px;
   }
   .detected-item .note.dup { color: var(--ink-muted); background: var(--bg); }
+  .detected-item .ticket-raw {
+    flex-basis: 100%;
+    font-size: 0.7rem;
+    color: var(--ink-faint);
+    font-style: italic;
+    margin-left: 30px;
+  }
 
   .scan-store {
     font-family: 'Plus Jakarta Sans', sans-serif;
@@ -586,6 +593,34 @@
     cursor: pointer;
   }
 
+  .catalogo-row input[type="checkbox"] {
+    flex-shrink: 0;
+    width: 22px; height: 22px;
+    accent-color: var(--brand);
+  }
+
+  #mergeModeBtn.active-tool {
+    background: var(--brand-soft);
+    color: var(--brand-dark);
+    font-weight: 700;
+  }
+
+  .merge-option {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .merge-option:last-child { border-bottom: none; }
+  .merge-option input[type="radio"] {
+    width: 20px; height: 20px;
+    accent-color: var(--brand);
+    flex-shrink: 0;
+  }
+  .merge-option .merge-name { font-weight: 600; font-size: 0.95rem; }
+  .merge-option .merge-meta { font-size: 0.74rem; color: var(--ink-muted); }
+
   /* =====================================================================
      PRECIOS
      ===================================================================== */
@@ -651,6 +686,7 @@
         <button type="submit">Guardar</button>
       </form>
       <input type="text" id="catalogoSearch" class="search-input" placeholder="Buscar en el catálogo..." />
+      <button id="mergeModeBtn" class="clear-done-btn">🔗 Fusionar duplicados</button>
       <div id="catalogoList"></div>
       <div id="catalogoEmpty" class="empty-msg">Aún no hay productos guardados. Añade uno arriba, o se irán sumando según uses la lista o escanees tickets.</div>
       <button id="syncCatalogBtn" class="clear-done-btn">🔄 Añadir la lista actual al catálogo</button>
@@ -675,6 +711,17 @@
     <p class="hint">Así sabemos quién añadió cada cosa a la lista.</p>
     <input type="text" id="nameInput" placeholder="Tu nombre" />
     <button class="primary-btn" id="nameSaveBtn">Guardar</button>
+  </div>
+</div>
+
+<!-- Modal: fusionar productos duplicados -->
+<div class="modal-overlay hidden" id="mergeModalOverlay">
+  <div class="modal">
+    <h2>Fusionar productos</h2>
+    <p class="hint">Elige el nombre que quieres conservar. Los demás se unirán a este — su historial de precios y artículos pasados de la lista pasan a contar como si siempre hubieran sido el mismo producto.</p>
+    <div id="mergeOptions"></div>
+    <button class="primary-btn" id="mergeConfirmBtn" style="margin-top: 14px;">Fusionar</button>
+    <button class="secondary-btn" id="mergeCancelBtn">Cancelar</button>
   </div>
 </div>
 
@@ -728,6 +775,7 @@
   const itemsRef = collection(db, "items");
   const preciosRef = collection(db, "precios");
   const catalogoRef = collection(db, "catalogo");
+  const fusionesRef = collection(db, "fusiones");
 
   // ---------------------------------------------------------------------
   // Normalización de nombres de producto — es la clave que usamos tanto
@@ -749,6 +797,29 @@
   let preciosCache = [];
   let catalogoCache = [];
 
+  // Mapa de fusiones: clave del producto "alias" → { canonClave, canonNombre }.
+  // Se recarga en tiempo real. Es la memoria que hace que, una vez fusionado
+  // un producto, cualquier nuevo escaneo o artículo con ese nombre (o uno
+  // parecido que Gemini interprete igual) caiga automáticamente en el
+  // producto "bueno" en vez de crear uno nuevo.
+  let fusionesCache = {};
+
+  // Dado un nombre escrito o interpretado por Gemini, devuelve el producto
+  // "real" al que pertenece: si ya fue fusionado con otro, devuelve la
+  // clave y el nombre canónicos; si no, devuelve los suyos propios.
+  function resolveProduct(name) {
+    const base = normalize(name);
+    const fusion = fusionesCache[base];
+    if (fusion) return { clave: fusion.canonClave, nombre: fusion.canonNombre };
+    return { clave: base, nombre: (name || "").trim() };
+  }
+
+  onSnapshot(fusionesRef, (snapshot) => {
+    fusionesCache = {};
+    snapshot.forEach((d) => { fusionesCache[d.id] = d.data(); });
+    renderCatalogoView();
+  }, (err) => console.error(err));
+
   function bestPriceFor(clave) {
     const matches = preciosCache.filter((p) => p.clave === clave && typeof p.precio === "number");
     if (!matches.length) return null;
@@ -757,25 +828,34 @@
 
   // Añade (o fusiona si ya existe) un artículo en la lista, y de paso lo
   // guarda en el catálogo permanente de productos.
-  async function addItemToList(name, quantity, addedByLabel) {
-    const clave = normalize(name);
-    const existing = currentItemsCache.find((it) => it.clave === clave && !it.checked);
-    if (existing) {
-      await updateDoc(doc(db, "items", existing.id), {
-        quantity: mergeQuantities(existing.quantity, quantity)
-      });
-      showToast(`"${name}" ya estaba en la lista — cantidad actualizada`);
-    } else {
-      await addDoc(itemsRef, {
-        name,
-        quantity,
-        checked: false,
-        addedBy: addedByLabel,
-        clave,
-        createdAt: serverTimestamp()
-      });
+  async function addItemToList(rawName, quantity, addedByLabel) {
+    const { clave, nombre: name } = resolveProduct(rawName);
+    if (!clave) {
+      showToast("Ese nombre no es válido");
+      return;
     }
-    await setDoc(doc(db, "catalogo", clave), { nombre: name, clave, updatedAt: serverTimestamp() }, { merge: true });
+    try {
+      const existing = currentItemsCache.find((it) => it.clave === clave && !it.checked);
+      if (existing) {
+        await updateDoc(doc(db, "items", existing.id), {
+          quantity: mergeQuantities(existing.quantity, quantity)
+        });
+        showToast(`"${name}" ya estaba en la lista — cantidad actualizada`);
+      } else {
+        await addDoc(itemsRef, {
+          name,
+          quantity,
+          checked: false,
+          addedBy: addedByLabel,
+          clave,
+          createdAt: serverTimestamp()
+        });
+      }
+      await setDoc(doc(db, "catalogo", clave), { nombre: name, clave, updatedAt: serverTimestamp() }, { merge: true });
+    } catch (err) {
+      console.error("Error al añadir artículo:", err);
+      showToast("No se pudo guardar. Revisa tu conexión.");
+    }
   }
 
   function mergeQuantities(a, b) {
@@ -945,7 +1025,7 @@
   });
 
   function checkPriceHint(name) {
-    const best = bestPriceFor(normalize(name));
+    const best = bestPriceFor(resolveProduct(name).clave);
     if (best) {
       priceHintEl.textContent = `💰 Más barato visto en ${best.supermercado || "un supermercado"}: ${best.precio.toFixed(2)} €`;
       priceHintEl.classList.remove("hidden");
@@ -1018,10 +1098,11 @@
           items: Schema.object({
             properties: {
               nombre: Schema.string(),
+              nombre_ticket: Schema.string(),
               cantidad: Schema.string(),
               precio: Schema.number()
             },
-            optionalProperties: ["precio"]
+            optionalProperties: ["precio", "nombre_ticket"]
           })
         })
       }
@@ -1047,16 +1128,39 @@
       const model = await ensureAIModel();
       const base64 = await fileToBase64(file);
 
+      // Le pasamos a Gemini los nombres de producto que ya conocemos (del
+      // catálogo) para que, si el ticket trae el nombre abreviado o escrito
+      // de otra forma, lo empareje con el que ya usamos — así el precio se
+      // agrupa bien con el histórico en vez de crear un producto "nuevo".
+      const catalogoConocido = catalogoCache.map((c) => c.nombre).slice(0, 300).join(", ");
+
+      const prompt = `Este es un ticket de la compra de un supermercado español.
+
+1. Identifica el nombre del supermercado (por el logo, la cabecera o el pie del ticket; si no se ve claro, pon "Desconocido").
+2. Extrae cada artículo comprado. Los nombres en tickets de supermercado suelen venir abreviados o cortados (ej. "LECHE E.1L", "TOM.PERA", "YOG NAT PACK4"). Interpreta qué producto es realmente y devuélvelo en "nombre" con un nombre claro, corto y en minúsculas salvo la primera letra, tal como lo escribiría una persona (ej. "Leche entera 1L", "Tomate pera", "Yogur natural pack 4").
+3. Ya tenemos guardados estos productos en nuestro catálogo: [${catalogoConocido || "ninguno todavía"}]. Si un artículo del ticket es claramente el mismo producto que uno de esa lista (aunque el ticket lo abrevie distinto), usa EXACTAMENTE ese mismo nombre del catálogo en "nombre", para que quede bien emparejado. Si no coincide con ninguno, propón un nombre nuevo y claro.
+4. Guarda también el texto literal tal como aparece impreso en el ticket, en "nombre_ticket".
+5. Incluye la cantidad si se ve clara (si no, deja el campo vacío) y el precio individual en euros como número decimal sin símbolo de moneda (por ejemplo 1.25).
+6. Ignora totales, IVA, descuentos, puntos de fidelidad y datos fiscales de la tienda.`;
+
       const result = await model.generateContent([
         {
           inlineData: { mimeType: file.type || "image/jpeg", data: base64 }
         },
-        "Este es un ticket de la compra de un supermercado español. Identifica el nombre del supermercado (por el logo, la cabecera o el pie del ticket; si no se ve claro, pon \"Desconocido\"). Extrae la lista de artículos comprados con su cantidad (si no hay cantidad clara, deja el campo vacío) y su precio individual en euros, como número decimal sin símbolo de moneda (por ejemplo 1.25). Ignora totales, IVA, descuentos, puntos de fidelidad y datos fiscales de la tienda."
+        prompt
       ]);
 
       const text = result.response.text();
       const parsed = JSON.parse(text);
-      const articulos = parsed.articulos || [];
+      const articulos = (parsed.articulos || [])
+        .filter((a) => (a.nombre || "").trim().length > 0)
+        .map((a) => {
+          // Si este producto (o su nombre interpretado) ya fue fusionado
+          // antes con otro, lo mandamos directamente al canónico en vez de
+          // dejar que se trate como un producto nuevo.
+          const resolved = resolveProduct(a.nombre);
+          return { ...a, nombre: resolved.nombre, clave: resolved.clave };
+        });
       const supermercado = parsed.supermercado || "Desconocido";
 
       if (articulos.length === 0) {
@@ -1088,17 +1192,22 @@
     // está en la lista (duplicado) y buscamos si hay un precio más barato
     // visto antes en otro supermercado (usando la caché en memoria).
     articulos.forEach((a, i) => {
-      a.clave = normalize(a.nombre);
+      // La clave ya viene resuelta (y, si aplica, fusionada) desde el
+      // paso anterior — no la recalculamos aquí para no perder la fusión.
       const isDup = currentItemsCache.some((it) => it.clave === a.clave && !it.checked);
 
       const row = document.createElement("label");
       row.className = "detected-item";
       const precioTxt = typeof a.precio === "number" ? `${a.precio.toFixed(2)} €` : "";
+      const ticketTxt = a.nombre_ticket && a.nombre_ticket.trim() && normalize(a.nombre_ticket) !== a.clave
+        ? `<span class="ticket-raw">en el ticket: "${escapeHtml(a.nombre_ticket)}"</span>`
+        : "";
       row.innerHTML = `
         <input type="checkbox" ${isDup ? "" : "checked"} data-idx="${i}" />
         <span class="name">${escapeHtml(a.nombre || "")}</span>
         <span class="qty">${escapeHtml(a.cantidad || "")}</span>
         <span class="price">${precioTxt}</span>
+        ${ticketTxt}
       `;
 
       let noteText = "";
@@ -1126,53 +1235,70 @@
     addBtn.style.marginTop = "14px";
     addBtn.textContent = "Añadir seleccionados a la lista";
     addBtn.addEventListener("click", async () => {
-      const supermercado = storeInput.value.trim() || "Desconocido";
-      const checkboxes = list.querySelectorAll("input[type=checkbox]");
-      const batch = writeBatch(db);
-      let addedCount = 0;
+      addBtn.disabled = true;
+      addBtn.textContent = "Guardando…";
 
-      checkboxes.forEach((c) => {
-        const a = articulos[Number(c.dataset.idx)];
+      try {
+        const supermercado = storeInput.value.trim() || "Desconocido";
+        const checkboxes = list.querySelectorAll("input[type=checkbox]");
+        const batch = writeBatch(db);
+        let addedCount = 0;
 
-        // Guardamos el precio de este artículo en el histórico siempre que
-        // lo tengamos, esté marcado o no — así el comparador aprende de
-        // todos los tickets, no solo de lo que añadas a la lista.
-        if (typeof a.precio === "number") {
-          const priceRef = doc(preciosRef);
-          batch.set(priceRef, {
-            clave: a.clave,
-            nombre: a.nombre || "",
-            supermercado,
-            precio: a.precio,
-            fecha: serverTimestamp()
-          });
-        }
+        checkboxes.forEach((c) => {
+          const a = articulos[Number(c.dataset.idx)];
 
-        if (!c.checked) return;
+          // Si por lo que sea no hay un nombre/clave válidos, nos saltamos
+          // este artículo en vez de dejar que rompa todo el guardado.
+          if (!a.clave) {
+            console.warn("Artículo sin nombre válido, se omite:", a);
+            return;
+          }
 
-        const existing = currentItemsCache.find((it) => it.clave === a.clave && !it.checked);
-        if (existing) {
-          batch.update(doc(db, "items", existing.id), {
-            quantity: mergeQuantities(existing.quantity, a.cantidad || "")
-          });
-        } else {
-          const ref = doc(itemsRef);
-          batch.set(ref, {
-            name: a.nombre || "Artículo",
-            quantity: a.cantidad || "",
-            checked: false,
-            addedBy: getUserName() + " (ticket)",
-            clave: a.clave,
-            createdAt: serverTimestamp()
-          });
-        }
-        batch.set(doc(db, "catalogo", a.clave), { nombre: a.nombre, clave: a.clave, updatedAt: serverTimestamp() }, { merge: true });
-        addedCount++;
-      });
+          // Guardamos el precio de este artículo en el histórico siempre que
+          // lo tengamos, esté marcado o no — así el comparador aprende de
+          // todos los tickets, no solo de lo que añadas a la lista.
+          if (typeof a.precio === "number") {
+            const priceRef = doc(preciosRef);
+            batch.set(priceRef, {
+              clave: a.clave,
+              nombre: a.nombre || "",
+              supermercado,
+              precio: a.precio,
+              fecha: serverTimestamp()
+            });
+          }
 
-      await batch.commit();
-      scanModal.classList.add("hidden");
-      showToast(`${addedCount} artículos añadidos · precios guardados`);
+          if (!c.checked) return;
+
+          const existing = currentItemsCache.find((it) => it.clave === a.clave && !it.checked);
+          if (existing) {
+            batch.update(doc(db, "items", existing.id), {
+              quantity: mergeQuantities(existing.quantity, a.cantidad || "")
+            });
+          } else {
+            const ref = doc(itemsRef);
+            batch.set(ref, {
+              name: a.nombre || "Artículo",
+              quantity: a.cantidad || "",
+              checked: false,
+              addedBy: getUserName() + " (ticket)",
+              clave: a.clave,
+              createdAt: serverTimestamp()
+            });
+          }
+          batch.set(doc(db, "catalogo", a.clave), { nombre: a.nombre, clave: a.clave, updatedAt: serverTimestamp() }, { merge: true });
+          addedCount++;
+        });
+
+        await batch.commit();
+        scanModal.classList.add("hidden");
+        showToast(`${addedCount} artículos añadidos · precios guardados`);
+      } catch (err) {
+        console.error("Error al guardar el ticket:", err);
+        addBtn.disabled = false;
+        addBtn.textContent = "Añadir seleccionados a la lista";
+        showToast("No se pudo guardar. Revisa tu conexión e inténtalo de nuevo.");
+      }
     });
     scanBody.appendChild(addBtn);
   }
@@ -1213,6 +1339,21 @@
     renderCatalogoView();
   }, (err) => console.error(err));
 
+  // ---------------------------------------------------------------------
+  // Fusión de productos duplicados
+  // ---------------------------------------------------------------------
+  let mergeMode = false;
+  let selectedMergeClaves = new Set();
+
+  document.getElementById("mergeModeBtn").addEventListener("click", () => {
+    mergeMode = !mergeMode;
+    selectedMergeClaves.clear();
+    const btn = document.getElementById("mergeModeBtn");
+    btn.textContent = mergeMode ? "✕ Cancelar selección" : "🔗 Fusionar duplicados";
+    btn.classList.toggle("active-tool", mergeMode);
+    renderCatalogoView();
+  });
+
   function renderCatalogoView() {
     const listEl = document.getElementById("catalogoList");
     const emptyEl = document.getElementById("catalogoEmpty");
@@ -1232,27 +1373,153 @@
           ${best ? `<div class="catalogo-price">💰 ${best.precio.toFixed(2)} € en ${escapeHtml(best.supermercado || "")}</div>` : ""}
         </div>
       `;
-      const addBtn = document.createElement("button");
-      addBtn.className = "add-btn";
-      addBtn.textContent = "+";
-      addBtn.title = "Añadir a la lista";
-      addBtn.addEventListener("click", () => addItemToList(p.nombre, "", getUserName() + " (catálogo)"));
-      row.appendChild(addBtn);
+
+      if (mergeMode) {
+        const cb = document.createElement("input");
+        cb.type = "checkbox";
+        cb.checked = selectedMergeClaves.has(p.clave);
+        cb.addEventListener("change", () => {
+          if (cb.checked) selectedMergeClaves.add(p.clave); else selectedMergeClaves.delete(p.clave);
+          renderMergeBar();
+        });
+        row.appendChild(cb);
+      } else {
+        const addBtn = document.createElement("button");
+        addBtn.className = "add-btn";
+        addBtn.textContent = "+";
+        addBtn.title = "Añadir a la lista";
+        addBtn.addEventListener("click", () => addItemToList(p.nombre, "", getUserName() + " (catálogo)"));
+        row.appendChild(addBtn);
+      }
+
       listEl.appendChild(row);
     });
+
+    renderMergeBar();
   }
 
   document.getElementById("catalogoSearch").addEventListener("input", renderCatalogoView);
 
+  // Botón que aparece bajo la lista cuando hay 2 o más productos
+  // seleccionados en modo fusión.
+  function renderMergeBar() {
+    let bar = document.getElementById("mergeBar");
+    if (!mergeMode || selectedMergeClaves.size < 2) {
+      if (bar) bar.remove();
+      return;
+    }
+    if (!bar) {
+      bar = document.createElement("button");
+      bar.id = "mergeBar";
+      bar.className = "primary-btn";
+      bar.style.marginTop = "12px";
+      bar.addEventListener("click", openMergeModal);
+      document.getElementById("catalogoList").after(bar);
+    }
+    bar.textContent = `Fusionar ${selectedMergeClaves.size} productos seleccionados`;
+  }
+
+  const mergeModal = document.getElementById("mergeModalOverlay");
+
+  function openMergeModal() {
+    const options = document.getElementById("mergeOptions");
+    options.innerHTML = "";
+
+    const selectedProducts = catalogoCache.filter((p) => selectedMergeClaves.has(p.clave));
+    selectedProducts.forEach((p, i) => {
+      const best = bestPriceFor(p.clave);
+      const label = document.createElement("label");
+      label.className = "merge-option";
+      label.innerHTML = `
+        <input type="radio" name="mergeCanon" value="${escapeHtml(p.clave)}" ${i === 0 ? "checked" : ""} />
+        <div>
+          <div class="merge-name">${escapeHtml(p.nombre || "")}</div>
+          <div class="merge-meta">${best ? `precio conocido: ${best.precio.toFixed(2)} € en ${escapeHtml(best.supermercado || "")}` : "sin precios guardados"}</div>
+        </div>
+      `;
+      options.appendChild(label);
+    });
+
+    mergeModal.classList.remove("hidden");
+  }
+
+  document.getElementById("mergeCancelBtn").addEventListener("click", () => {
+    mergeModal.classList.add("hidden");
+  });
+
+  document.getElementById("mergeConfirmBtn").addEventListener("click", async () => {
+    const checked = document.querySelector('input[name="mergeCanon"]:checked');
+    if (!checked) return;
+
+    const canonClave = checked.value;
+    const canonProduct = catalogoCache.find((p) => p.clave === canonClave);
+    const canonNombre = canonProduct ? canonProduct.nombre : canonClave;
+    const aliasClaves = [...selectedMergeClaves].filter((c) => c !== canonClave);
+
+    const confirmBtn = document.getElementById("mergeConfirmBtn");
+    confirmBtn.disabled = true;
+    confirmBtn.textContent = "Fusionando…";
+
+    try {
+      await performMerge(canonClave, canonNombre, aliasClaves);
+      mergeModal.classList.add("hidden");
+      mergeMode = false;
+      selectedMergeClaves.clear();
+      const btn = document.getElementById("mergeModeBtn");
+      btn.textContent = "🔗 Fusionar duplicados";
+      btn.classList.remove("active-tool");
+      showToast("Productos fusionados");
+      renderCatalogoView();
+    } catch (err) {
+      console.error("Error al fusionar:", err);
+      showToast("No se pudo fusionar. Inténtalo de nuevo.");
+    } finally {
+      confirmBtn.disabled = false;
+      confirmBtn.textContent = "Fusionar";
+    }
+  });
+
+  // Migra todos los artículos y precios de los productos "alias" hacia el
+  // producto canónico, y registra la fusión para que futuros escaneos o
+  // artículos con ese nombre caigan aquí directamente.
+  async function performMerge(canonClave, canonNombre, aliasClaves) {
+    const batch = writeBatch(db);
+
+    for (const aliasClave of aliasClaves) {
+      batch.set(doc(db, "fusiones", aliasClave), {
+        canonClave,
+        canonNombre,
+        createdAt: serverTimestamp()
+      });
+
+      const itemsSnap = await getDocs(query(itemsRef, where("clave", "==", aliasClave)));
+      itemsSnap.forEach((d) => batch.update(d.ref, { clave: canonClave, name: canonNombre }));
+
+      const preciosSnap = await getDocs(query(preciosRef, where("clave", "==", aliasClave)));
+      preciosSnap.forEach((d) => batch.update(d.ref, { clave: canonClave, nombre: canonNombre }));
+
+      batch.delete(doc(db, "catalogo", aliasClave));
+    }
+
+    batch.set(doc(db, "catalogo", canonClave), { nombre: canonNombre, clave: canonClave, updatedAt: serverTimestamp() }, { merge: true });
+
+    await batch.commit();
+  }
+
   document.getElementById("catalogoAddForm").addEventListener("submit", async (e) => {
     e.preventDefault();
     const input = document.getElementById("catalogoAddInput");
-    const name = input.value.trim();
-    if (!name) return;
-    const clave = normalize(name);
-    await setDoc(doc(db, "catalogo", clave), { nombre: name, clave, updatedAt: serverTimestamp() }, { merge: true });
-    input.value = "";
-    showToast(`"${name}" añadido al catálogo`);
+    const rawName = input.value.trim();
+    if (!rawName) return;
+    const { clave, nombre } = resolveProduct(rawName);
+    try {
+      await setDoc(doc(db, "catalogo", clave), { nombre, clave, updatedAt: serverTimestamp() }, { merge: true });
+      input.value = "";
+      showToast(fusionesCache[normalize(rawName)] ? `Ya estaba fusionado con "${nombre}"` : `"${nombre}" añadido al catálogo`);
+    } catch (err) {
+      console.error(err);
+      showToast("No se pudo guardar. Revisa tu conexión.");
+    }
   });
 
   document.getElementById("syncCatalogBtn").addEventListener("click", async () => {

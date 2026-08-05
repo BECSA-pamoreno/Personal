@@ -18,6 +18,9 @@ service cloud.firestore {
     match /catalogo/{productoId} {
       allow read, write: if true;
     }
+    match /fusiones/{aliasId} {
+      allow read, write: if true;
+    }
   }
 }
 ```
