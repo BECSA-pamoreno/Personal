@@ -15,13 +15,16 @@ service cloud.firestore {
     match /precios/{precioId} {
       allow read, write: if true;
     }
+    match /catalogo/{productoId} {
+      allow read, write: if true;
+    }
   }
 }
 ```
 
-*(Si ya habías publicado antes la versión sin `precios`, tendrás que volver a
-Firestore → Reglas y pegar esta versión actualizada — si no, el escaneo de
-tickets no podrá guardar el histórico de precios.)*
+*(Si ya habías publicado antes una versión anterior de estas reglas, vuelve a
+Firestore → Reglas y pega esta versión completa — si no, el catálogo y el
+histórico de precios no podrán guardarse.)*
 
 Esto deja la lista abierta a quien tenga el enlace de tu web (no hay contraseña).
 Para uso familiar con un enlace que no compartes públicamente es razonable. Si

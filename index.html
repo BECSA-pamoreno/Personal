@@ -418,6 +418,92 @@
     color: var(--primary);
     margin-bottom: 12px;
   }
+
+  #scanStoreInput {
+    width: 100%;
+    padding: 10px;
+    border: 1.5px solid var(--line);
+    border-radius: 8px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.9rem;
+    margin-bottom: 14px;
+    background: var(--paper-raised);
+    color: var(--ink);
+  }
+
+  /* ---------- Barra de pestañas ---------- */
+  .tabbar {
+    display: flex;
+    max-width: 480px;
+    margin: 0 auto;
+    padding: 10px 16px 0;
+    gap: 6px;
+  }
+  .tabbar button {
+    flex: 1;
+    background: var(--paper-raised);
+    border: 1.5px solid var(--line);
+    color: var(--ink-soft);
+    border-radius: 10px;
+    padding: 9px 4px;
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 700;
+    font-size: 0.76rem;
+    cursor: pointer;
+  }
+  .tabbar button.active {
+    background: var(--primary);
+    border-color: var(--primary);
+    color: var(--paper);
+  }
+
+  #viewCatalogo.hidden, #viewPrecios.hidden, #viewLista.hidden { display: none; }
+
+  .search-input {
+    width: 100%;
+    padding: 11px 12px;
+    border: 1.5px solid var(--line);
+    border-radius: 8px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.9rem;
+    background: var(--paper-raised);
+    color: var(--ink);
+    margin-bottom: 12px;
+  }
+
+  .catalogo-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 0;
+    border-bottom: 1px dotted var(--line);
+  }
+  .catalogo-row .info { flex: 1; }
+  .catalogo-row .catalogo-name { font-size: 0.92rem; }
+  .catalogo-row .catalogo-price { font-size: 0.76rem; color: var(--ink-soft); }
+  .catalogo-row .add-btn {
+    flex-shrink: 0;
+    width: 30px; height: 30px;
+    border-radius: 50%;
+    border: none;
+    background: var(--accent);
+    color: var(--primary-dark);
+    font-size: 1.1rem;
+    cursor: pointer;
+  }
+
+  .price-group { margin-bottom: 16px; }
+  .price-group .section-label { margin: 0 0 6px; }
+  .price-row {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    padding: 5px 0;
+    font-size: 0.85rem;
+  }
+  .price-row .leader { flex: 1; border-bottom: 1px dotted var(--line); margin-bottom: 4px; }
+  .price-row .date { color: var(--ink-soft); font-size: 0.72rem; flex-shrink: 0; }
+  .price-row.cheapest .price { color: var(--primary); font-weight: 600; }
 </style>
 </head>
 <body>
@@ -428,27 +514,52 @@
   <div class="torn-edge"></div>
 </header>
 
+<nav class="tabbar">
+  <button id="tabLista" class="active">🧺 Lista</button>
+  <button id="tabCatalogo">📖 Catálogo</button>
+  <button id="tabPrecios">💰 Precios</button>
+</nav>
+
 <div id="installBanner" class="install-banner hidden">
   <button id="installBtn">📲 Instalar en este móvil</button>
 </div>
 
 <main>
-  <div class="ticket">
-    <div class="section-label">Pendientes <span class="count" id="pendingCount">0</span></div>
-    <ul class="items" id="pendingList"></ul>
-    <div id="pendingEmpty" class="empty-msg">No hay nada pendiente. ¡Buen trabajo!</div>
+  <div id="viewLista">
+    <div class="ticket">
+      <div class="section-label">Pendientes <span class="count" id="pendingCount">0</span></div>
+      <ul class="items" id="pendingList"></ul>
+      <div id="pendingEmpty" class="empty-msg">No hay nada pendiente. ¡Buen trabajo!</div>
 
-    <div class="section-label">Comprados <span class="count" id="doneCount">0</span></div>
-    <ul class="items" id="doneList"></ul>
-    <div id="doneEmpty" class="empty-msg">Nada marcado todavía.</div>
-    <button id="clearDoneBtn" class="clear-done-btn">Vaciar comprados</button>
+      <div class="section-label">Comprados <span class="count" id="doneCount">0</span></div>
+      <ul class="items" id="doneList"></ul>
+      <div id="doneEmpty" class="empty-msg">Nada marcado todavía.</div>
+      <button id="clearDoneBtn" class="clear-done-btn">Vaciar comprados</button>
 
-    <form class="add-form" id="addForm">
-      <input type="text" id="itemNameInput" placeholder="Añadir artículo..." autocomplete="off" required />
-      <input type="text" id="itemQtyInput" class="qty" placeholder="cant." autocomplete="off" />
-      <button type="submit" aria-label="Añadir">+</button>
-    </form>
-    <div class="price-hint hidden" id="priceHint"></div>
+      <form class="add-form" id="addForm">
+        <input type="text" id="itemNameInput" placeholder="Añadir artículo..." autocomplete="off" required />
+        <input type="text" id="itemQtyInput" class="qty" placeholder="cant." autocomplete="off" />
+        <button type="submit" aria-label="Añadir">+</button>
+      </form>
+      <div class="price-hint hidden" id="priceHint"></div>
+    </div>
+  </div>
+
+  <div id="viewCatalogo" class="hidden">
+    <div class="ticket">
+      <input type="text" id="catalogoSearch" class="search-input" placeholder="Buscar en el catálogo..." />
+      <div id="catalogoList"></div>
+      <div id="catalogoEmpty" class="empty-msg">Aún no hay productos guardados. Se irán añadiendo según uses la lista o escanees tickets.</div>
+      <button id="syncCatalogBtn" class="clear-done-btn">🔄 Añadir la lista actual al catálogo</button>
+    </div>
+  </div>
+
+  <div id="viewPrecios" class="hidden">
+    <div class="ticket">
+      <input type="text" id="preciosSearch" class="search-input" placeholder="Buscar producto..." />
+      <div id="preciosList"></div>
+      <div id="preciosEmpty" class="empty-msg">Todavía no hay precios guardados. Escanea un ticket para empezar a comparar.</div>
+    </div>
   </div>
 </main>
 
@@ -468,6 +579,7 @@
 <div class="modal-overlay hidden" id="scanModalOverlay">
   <div class="modal">
     <h2>Escanear ticket</h2>
+    <!-- (el campo de supermercado se inserta dinámicamente sobre los resultados) -->
     <p class="hint">Haz una foto al ticket de compra y Gemini detectará los artículos.</p>
     <div id="scanBody">
       <input type="file" id="scanFileInput" accept="image/*" capture="environment" />
@@ -481,7 +593,7 @@
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/12.17.0/firebase-app.js";
   import {
-    getFirestore, collection, addDoc, updateDoc, deleteDoc, doc,
+    getFirestore, collection, addDoc, updateDoc, deleteDoc, doc, setDoc,
     onSnapshot, query, orderBy, serverTimestamp, writeBatch, getDocs, where
   } from "https://www.gstatic.com/firebasejs/12.17.0/firebase-firestore.js";
 
@@ -506,6 +618,7 @@
   const db = getFirestore(app);
   const itemsRef = collection(db, "items");
   const preciosRef = collection(db, "precios");
+  const catalogoRef = collection(db, "catalogo");
 
   // ---------------------------------------------------------------------
   // Normalización de nombres de producto — es la clave que usamos tanto
@@ -521,10 +634,70 @@
       .trim();
   }
 
-  // Caché local del contenido actual de la lista (se actualiza en cada
-  // snapshot de Firestore) — nos sirve para detectar duplicados sin tener
-  // que hacer una consulta nueva cada vez.
+  // Cachés locales (se actualizan en tiempo real con cada snapshot de
+  // Firestore) — evitan tener que lanzar consultas nuevas constantemente.
   let currentItemsCache = [];
+  let preciosCache = [];
+  let catalogoCache = [];
+
+  function bestPriceFor(clave) {
+    const matches = preciosCache.filter((p) => p.clave === clave && typeof p.precio === "number");
+    if (!matches.length) return null;
+    return matches.reduce((min, p) => (p.precio < min.precio ? p : min), matches[0]);
+  }
+
+  // Añade (o fusiona si ya existe) un artículo en la lista, y de paso lo
+  // guarda en el catálogo permanente de productos.
+  async function addItemToList(name, quantity, addedByLabel) {
+    const clave = normalize(name);
+    const existing = currentItemsCache.find((it) => it.clave === clave && !it.checked);
+    if (existing) {
+      await updateDoc(doc(db, "items", existing.id), {
+        quantity: mergeQuantities(existing.quantity, quantity)
+      });
+      showToast(`"${name}" ya estaba en la lista — cantidad actualizada`);
+    } else {
+      await addDoc(itemsRef, {
+        name,
+        quantity,
+        checked: false,
+        addedBy: addedByLabel,
+        clave,
+        createdAt: serverTimestamp()
+      });
+    }
+    await setDoc(doc(db, "catalogo", clave), { nombre: name, clave, updatedAt: serverTimestamp() }, { merge: true });
+  }
+
+  function mergeQuantities(a, b) {
+    a = (a || "").trim();
+    b = (b || "").trim();
+    if (!a) return b;
+    if (!b) return a;
+    if (a === b) return a;
+    return `${a} + ${b}`;
+  }
+
+  // ---------------------------------------------------------------------
+  // Pestañas: Lista / Catálogo / Precios
+  // ---------------------------------------------------------------------
+  const tabs = {
+    lista: document.getElementById("tabLista"),
+    catalogo: document.getElementById("tabCatalogo"),
+    precios: document.getElementById("tabPrecios")
+  };
+  const views = {
+    lista: document.getElementById("viewLista"),
+    catalogo: document.getElementById("viewCatalogo"),
+    precios: document.getElementById("viewPrecios")
+  };
+  function switchTab(name) {
+    Object.keys(views).forEach((k) => views[k].classList.toggle("hidden", k !== name));
+    Object.keys(tabs).forEach((k) => tabs[k].classList.toggle("active", k === name));
+  }
+  tabs.lista.addEventListener("click", () => switchTab("lista"));
+  tabs.catalogo.addEventListener("click", () => switchTab("catalogo"));
+  tabs.precios.addEventListener("click", () => switchTab("precios"));
 
   // ---------------------------------------------------------------------
   // 2) Nombre de usuario (guardado localmente en este móvil)
@@ -639,40 +812,13 @@
     const quantity = qtyEl.value.trim();
     if (!name) return;
 
-    const clave = normalize(name);
-
-    // Deduplicación: si ya hay un artículo pendiente igual, lo actualizamos
-    // en vez de crear uno nuevo.
-    const existing = currentItemsCache.find((it) => it.clave === clave && !it.checked);
-    if (existing) {
-      const mergedQty = mergeQuantities(existing.quantity, quantity);
-      await updateDoc(doc(db, "items", existing.id), { quantity: mergedQty });
-      showToast(`"${name}" ya estaba en la lista — cantidad actualizada`);
-    } else {
-      await addDoc(itemsRef, {
-        name,
-        quantity,
-        checked: false,
-        addedBy: getUserName(),
-        clave,
-        createdAt: serverTimestamp()
-      });
-    }
+    await addItemToList(name, quantity, getUserName());
 
     nameEl.value = "";
     qtyEl.value = "";
     nameEl.focus();
     hidePriceHint();
   });
-
-  function mergeQuantities(a, b) {
-    a = (a || "").trim();
-    b = (b || "").trim();
-    if (!a) return b;
-    if (!b) return a;
-    if (a === b) return a;
-    return `${a} + ${b}`;
-  }
 
   // ---------------------------------------------------------------------
   // Aviso de precio mientras escribes: si hay historial de ese producto
@@ -686,27 +832,16 @@
     clearTimeout(priceHintTimer);
     const val = e.target.value.trim();
     if (val.length < 3) { hidePriceHint(); return; }
-    priceHintTimer = setTimeout(() => checkPriceHint(val), 450);
+    priceHintTimer = setTimeout(() => checkPriceHint(val), 300);
   });
 
-  async function checkPriceHint(name) {
-    const clave = normalize(name);
-    try {
-      const snap = await getDocs(query(preciosRef, where("clave", "==", clave)));
-      if (snap.empty) { hidePriceHint(); return; }
-      let best = null;
-      snap.forEach((d) => {
-        const p = d.data();
-        if (typeof p.precio === "number" && (!best || p.precio < best.precio)) best = p;
-      });
-      if (best) {
-        priceHintEl.textContent = `💰 Más barato visto en ${best.supermercado || "un supermercado"}: ${best.precio.toFixed(2)} €`;
-        priceHintEl.classList.remove("hidden");
-      } else {
-        hidePriceHint();
-      }
-    } catch (err) {
-      console.error(err);
+  function checkPriceHint(name) {
+    const best = bestPriceFor(normalize(name));
+    if (best) {
+      priceHintEl.textContent = `💰 Más barato visto en ${best.supermercado || "un supermercado"}: ${best.precio.toFixed(2)} €`;
+      priceHintEl.classList.remove("hidden");
+    } else {
+      hidePriceHint();
     }
   }
 
@@ -714,6 +849,7 @@
     priceHintEl.classList.add("hidden");
     priceHintEl.textContent = "";
   }
+
 
   // ---------------------------------------------------------------------
   // 5) Vaciar comprados
@@ -826,21 +962,23 @@
     }
   });
 
-  async function renderScanResults(articulos, supermercado) {
+  function renderScanResults(articulos, detectedStore) {
     scanBody.innerHTML = "";
 
-    const storeLabel = document.createElement("div");
-    storeLabel.className = "scan-store";
-    storeLabel.textContent = `🧾 Ticket de: ${supermercado}`;
-    scanBody.appendChild(storeLabel);
+    const storeWrap = document.createElement("div");
+    storeWrap.innerHTML = `
+      <label class="scan-store" for="scanStoreInput">🧾 Supermercado (revísalo o corrígelo)</label>
+      <input type="text" id="scanStoreInput" value="${escapeHtml(detectedStore)}" />
+    `;
+    scanBody.appendChild(storeWrap);
+    const storeInput = storeWrap.querySelector("#scanStoreInput");
 
     const list = document.createElement("div");
 
     // Para cada artículo detectado: calculamos su clave, comprobamos si ya
     // está en la lista (duplicado) y buscamos si hay un precio más barato
-    // visto antes en otro supermercado.
-    for (let i = 0; i < articulos.length; i++) {
-      const a = articulos[i];
+    // visto antes en otro supermercado (usando la caché en memoria).
+    articulos.forEach((a, i) => {
       a.clave = normalize(a.nombre);
       const isDup = currentItemsCache.some((it) => it.clave === a.clave && !it.checked);
 
@@ -858,7 +996,7 @@
       if (isDup) {
         noteText = "ya está en la lista — desmarcado para no duplicar";
       } else if (typeof a.precio === "number") {
-        const cheaper = await findCheaperElsewhere(a.clave, a.precio, supermercado);
+        const cheaper = findCheaperElsewhere(a.clave, a.precio, detectedStore);
         if (cheaper) {
           noteText = `visto más barato en ${cheaper.supermercado}: ${cheaper.precio.toFixed(2)} €`;
         }
@@ -871,7 +1009,7 @@
       }
 
       list.appendChild(row);
-    }
+    });
     scanBody.appendChild(list);
 
     const addBtn = document.createElement("button");
@@ -879,6 +1017,7 @@
     addBtn.style.marginTop = "14px";
     addBtn.textContent = "Añadir seleccionados a la lista";
     addBtn.addEventListener("click", async () => {
+      const supermercado = storeInput.value.trim() || "Desconocido";
       const checkboxes = list.querySelectorAll("input[type=checkbox]");
       const batch = writeBatch(db);
       let addedCount = 0;
@@ -918,6 +1057,7 @@
             createdAt: serverTimestamp()
           });
         }
+        batch.set(doc(db, "catalogo", a.clave), { nombre: a.nombre, clave: a.clave, updatedAt: serverTimestamp() }, { merge: true });
         addedCount++;
       });
 
@@ -929,23 +1069,13 @@
   }
 
   // Busca si el mismo producto se ha visto más barato en OTRO supermercado
-  // distinto al del ticket actual.
-  async function findCheaperElsewhere(clave, currentPrice, currentStore) {
-    try {
-      const snap = await getDocs(query(preciosRef, where("clave", "==", clave)));
-      let best = null;
-      snap.forEach((d) => {
-        const p = d.data();
-        if (p.supermercado === currentStore) return;
-        if (typeof p.precio === "number" && p.precio < currentPrice && (!best || p.precio < best.precio)) {
-          best = p;
-        }
-      });
-      return best;
-    } catch (err) {
-      console.error(err);
-      return null;
-    }
+  // distinto al del ticket actual (sobre la caché de precios en memoria).
+  function findCheaperElsewhere(clave, currentPrice, currentStore) {
+    const candidates = preciosCache.filter(
+      (p) => p.clave === clave && p.supermercado !== currentStore && typeof p.precio === "number" && p.precio < currentPrice
+    );
+    if (!candidates.length) return null;
+    return candidates.reduce((min, p) => (p.precio < min.precio ? p : min), candidates[0]);
   }
 
   function fileToBase64(file) {
@@ -957,6 +1087,7 @@
     });
   }
 
+
   function escapeHtml(str) {
     const d = document.createElement("div");
     d.textContent = str;
@@ -964,7 +1095,120 @@
   }
 
   // ---------------------------------------------------------------------
-  // 7) Aviso pequeño (toast)
+  // 7) Vista de Catálogo — todos los productos que has añadido alguna vez,
+  //    para poder repasarlos y volver a añadirlos con un toque.
+  // ---------------------------------------------------------------------
+  onSnapshot(query(catalogoRef, orderBy("nombre", "asc")), (snapshot) => {
+    catalogoCache = [];
+    snapshot.forEach((d) => catalogoCache.push({ id: d.id, ...d.data() }));
+    renderCatalogoView();
+  }, (err) => console.error(err));
+
+  function renderCatalogoView() {
+    const listEl = document.getElementById("catalogoList");
+    const emptyEl = document.getElementById("catalogoEmpty");
+    const filter = (document.getElementById("catalogoSearch").value || "").trim().toLowerCase();
+    listEl.innerHTML = "";
+
+    const filtered = catalogoCache.filter((p) => !filter || (p.nombre || "").toLowerCase().includes(filter));
+    emptyEl.style.display = filtered.length === 0 ? "block" : "none";
+
+    filtered.forEach((p) => {
+      const best = bestPriceFor(p.clave);
+      const row = document.createElement("div");
+      row.className = "catalogo-row";
+      row.innerHTML = `
+        <div class="info">
+          <div class="catalogo-name">${escapeHtml(p.nombre || "")}</div>
+          ${best ? `<div class="catalogo-price">💰 ${best.precio.toFixed(2)} € en ${escapeHtml(best.supermercado || "")}</div>` : ""}
+        </div>
+      `;
+      const addBtn = document.createElement("button");
+      addBtn.className = "add-btn";
+      addBtn.textContent = "+";
+      addBtn.title = "Añadir a la lista";
+      addBtn.addEventListener("click", () => addItemToList(p.nombre, "", getUserName() + " (catálogo)"));
+      row.appendChild(addBtn);
+      listEl.appendChild(row);
+    });
+  }
+
+  document.getElementById("catalogoSearch").addEventListener("input", renderCatalogoView);
+
+  document.getElementById("syncCatalogBtn").addEventListener("click", async () => {
+    if (currentItemsCache.length === 0) {
+      showToast("La lista actual está vacía");
+      return;
+    }
+    const batch = writeBatch(db);
+    currentItemsCache.forEach((it) => {
+      batch.set(doc(db, "catalogo", it.clave), { nombre: it.name, clave: it.clave, updatedAt: serverTimestamp() }, { merge: true });
+    });
+    await batch.commit();
+    showToast("Catálogo sincronizado con la lista actual");
+  });
+
+  // ---------------------------------------------------------------------
+  // 8) Vista de Precios — el histórico completo de precios por producto,
+  //    agrupado y ordenado de más barato a más caro.
+  // ---------------------------------------------------------------------
+  onSnapshot(query(preciosRef, orderBy("fecha", "desc")), (snapshot) => {
+    preciosCache = [];
+    snapshot.forEach((d) => preciosCache.push({ id: d.id, ...d.data() }));
+    renderPreciosView();
+    renderCatalogoView();
+  }, (err) => console.error(err));
+
+  function renderPreciosView() {
+    const listEl = document.getElementById("preciosList");
+    const emptyEl = document.getElementById("preciosEmpty");
+    const filter = (document.getElementById("preciosSearch").value || "").trim().toLowerCase();
+    listEl.innerHTML = "";
+
+    const groups = {};
+    preciosCache.forEach((p) => {
+      if (typeof p.precio !== "number") return;
+      if (filter && !(p.nombre || "").toLowerCase().includes(filter)) return;
+      if (!groups[p.clave]) groups[p.clave] = { nombre: p.nombre, entries: [] };
+      groups[p.clave].entries.push(p);
+    });
+
+    const claves = Object.keys(groups);
+    emptyEl.style.display = claves.length === 0 ? "block" : "none";
+
+    claves.forEach((clave) => {
+      const group = groups[clave];
+      group.entries.sort((a, b) => a.precio - b.precio);
+
+      const wrap = document.createElement("div");
+      wrap.className = "price-group";
+
+      const title = document.createElement("div");
+      title.className = "section-label";
+      title.textContent = group.nombre;
+      wrap.appendChild(title);
+
+      group.entries.forEach((e, idx) => {
+        const fecha = e.fecha && e.fecha.toDate ? e.fecha.toDate().toLocaleDateString("es-ES") : "";
+        const row = document.createElement("div");
+        row.className = "price-row" + (idx === 0 ? " cheapest" : "");
+        row.innerHTML = `
+          <span class="store">${idx === 0 ? "⭐ " : ""}${escapeHtml(e.supermercado || "Desconocido")}</span>
+          <span class="leader"></span>
+          <span class="price">${e.precio.toFixed(2)} €</span>
+          <span class="date">${fecha}</span>
+        `;
+        wrap.appendChild(row);
+      });
+
+      listEl.appendChild(wrap);
+    });
+  }
+
+  document.getElementById("preciosSearch").addEventListener("input", renderPreciosView);
+
+  // ---------------------------------------------------------------------
+  // 9) Aviso pequeño (toast)
   // ---------------------------------------------------------------------
   let toastTimer = null;
   function showToast(msg) {
@@ -976,8 +1220,8 @@
   }
 
   // ---------------------------------------------------------------------
-  // 8) Instalar como app (Android/Chrome). En iPhone se instala desde
-  //    Safari → Compartir → "Añadir a pantalla de inicio".
+  // 10) Instalar como app (Android/Chrome). En iPhone se instala desde
+  //     Safari → Compartir → "Añadir a pantalla de inicio".
   // ---------------------------------------------------------------------
   let deferredPrompt = null;
   window.addEventListener("beforeinstallprompt", (e) => {
@@ -994,7 +1238,7 @@
   });
 
   // ---------------------------------------------------------------------
-  // 9) Registrar el service worker (PWA instalable + shell offline)
+  // 11) Registrar el service worker (PWA instalable + shell offline)
   // ---------------------------------------------------------------------
   if ("serviceWorker" in navigator) {
     window.addEventListener("load", () => {
