@@ -609,6 +609,19 @@
     cursor: pointer;
   }
 
+  .cat-select {
+    margin-top: 4px;
+    font-family: 'Inter', sans-serif;
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: var(--ink-muted);
+    background: var(--bg);
+    border: none;
+    border-radius: 20px;
+    padding: 3px 8px;
+    max-width: 100%;
+  }
+
   .catalogo-row input[type="checkbox"] {
     flex-shrink: 0;
     width: 22px; height: 22px;
@@ -703,6 +716,7 @@
       </form>
       <input type="text" id="catalogoSearch" class="search-input" placeholder="Buscar en el catálogo..." />
       <button id="mergeModeBtn" class="clear-done-btn">🔗 Fusionar duplicados</button>
+      <button id="categorizeBtn" class="clear-done-btn">🤖 Categorizar con IA</button>
       <div id="catalogoList"></div>
       <div id="catalogoEmpty" class="empty-msg">Aún no hay productos guardados. Añade uno arriba, o se irán sumando según uses la lista o escanees tickets.</div>
       <button id="syncCatalogBtn" class="clear-done-btn">🔄 Añadir la lista actual al catálogo</button>
@@ -1121,9 +1135,18 @@
     scanModal.classList.add("hidden");
   });
 
+  let aiInstance = null;
+  let SchemaRef = null;
+  let getGenerativeModelRef = null;
   let aiModel = null;
-  async function ensureAIModel() {
-    if (aiModel) return aiModel;
+  let categorizeModel = null;
+
+  // Inicializa Firebase AI Logic (App Check + backend) una sola vez.
+  // Devuelve la instancia de AI y la clase Schema, para poder construir
+  // distintos modelos (lectura de tickets, categorización por lotes...)
+  // sin repetir la inicialización de App Check.
+  async function ensureAI() {
+    if (aiInstance) return { ai: aiInstance, Schema: SchemaRef };
     if (RECAPTCHA_SITE_KEY === "PEGA_AQUI_TU_CLAVE_RECAPTCHA") {
       throw new Error(
         "Falta configurar la clave de reCAPTCHA. Ve a Firebase console → AI Logic → App Check, cópiala y pégala en index.html."
@@ -1141,7 +1164,15 @@
       isTokenAutoRefreshEnabled: true
     });
 
-    const ai = getAI(app, { backend: new GoogleAIBackend() });
+    aiInstance = getAI(app, { backend: new GoogleAIBackend() });
+    SchemaRef = Schema;
+    getGenerativeModelRef = getGenerativeModel;
+    return { ai: aiInstance, Schema: SchemaRef };
+  }
+
+  async function ensureAIModel() {
+    if (aiModel) return aiModel;
+    const { ai, Schema } = await ensureAI();
 
     const itemsSchema = Schema.object({
       properties: {
@@ -1161,7 +1192,7 @@
       }
     });
 
-    aiModel = getGenerativeModel(ai, {
+    aiModel = getGenerativeModelRef(ai, {
       model: "gemini-3.1-flash-lite",
       generationConfig: {
         responseMimeType: "application/json",
@@ -1169,6 +1200,73 @@
       }
     });
     return aiModel;
+  }
+
+  // Modelo de solo texto para categorizar en lote productos que ya
+  // están en el catálogo pero no vinieron de un ticket escaneado.
+  async function ensureCategorizeModel() {
+    if (categorizeModel) return categorizeModel;
+    const { ai, Schema } = await ensureAI();
+
+    const categorizeSchema = Schema.object({
+      properties: {
+        productos: Schema.array({
+          items: Schema.object({
+            properties: {
+              clave: Schema.string(),
+              categoria: Schema.enumString({ enum: CATEGORIAS })
+            }
+          })
+        })
+      }
+    });
+
+    categorizeModel = getGenerativeModelRef(ai, {
+      model: "gemini-3.1-flash-lite",
+      generationConfig: {
+        responseMimeType: "application/json",
+        responseSchema: categorizeSchema
+      }
+    });
+    return categorizeModel;
+  }
+
+  // Envía a Gemini todos los productos del catálogo sin categoría real
+  // (o marcados "Otros") y los clasifica en lote. Devuelve cuántos
+  // productos se actualizaron.
+  async function categorizeCatalogWithAI() {
+    const pending = catalogoCache.filter((p) => !p.categoria || p.categoria === "Otros");
+    if (pending.length === 0) return 0;
+
+    const model = await ensureCategorizeModel();
+    const lista = pending.map((p) => `${p.clave} :: ${p.nombre}`).join("\n");
+    const prompt = `Aquí tienes una lista de productos de supermercado en español. Cada línea tiene un identificador ("clave") y el nombre del producto, separados por "::".
+
+${lista}
+
+Clasifica CADA producto de la lista en una de estas categorías exactas: ${CATEGORIAS.join(", ")}. Usa "Otros" solo si de verdad no encaja en ninguna otra. Devuelve, para cada producto, el mismo identificador ("clave") tal cual aparece arriba junto con la categoría elegida. No omitas ninguno.`;
+
+    const result = await model.generateContent(prompt);
+    const parsed = JSON.parse(result.response.text());
+    const productos = parsed.productos || [];
+
+    const batch = writeBatch(db);
+    let updatedCount = 0;
+
+    for (const p of productos) {
+      if (!p.clave || !CATEGORIAS.includes(p.categoria)) continue;
+      batch.set(doc(db, "catalogo", p.clave), { categoria: p.categoria, updatedAt: serverTimestamp() }, { merge: true });
+
+      // Propagamos la categoría a los artículos ya existentes en la lista
+      // (pendientes o comprados) con ese mismo producto.
+      const itemsSnap = await getDocs(query(itemsRef, where("clave", "==", p.clave)));
+      itemsSnap.forEach((d) => batch.update(d.ref, { categoria: p.categoria }));
+
+      updatedCount++;
+    }
+
+    await batch.commit();
+    return updatedCount;
   }
 
   scanFileInput.addEventListener("change", async () => {
@@ -1427,6 +1525,27 @@
     renderCatalogoView();
   });
 
+  document.getElementById("categorizeBtn").addEventListener("click", async () => {
+    const btn = document.getElementById("categorizeBtn");
+    const pendingCount = catalogoCache.filter((p) => !p.categoria || p.categoria === "Otros").length;
+    if (pendingCount === 0) {
+      showToast("Todo tu catálogo ya está categorizado");
+      return;
+    }
+    btn.disabled = true;
+    btn.textContent = `Categorizando ${pendingCount} productos…`;
+    try {
+      const updated = await categorizeCatalogWithAI();
+      showToast(`${updated} productos categorizados`);
+    } catch (err) {
+      console.error("Error al categorizar:", err);
+      showToast(`No se pudo categorizar: ${err.code || err.message || "error desconocido"}`, 6000);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = "🤖 Categorizar con IA";
+    }
+  });
+
   function renderCatalogoView() {
     const listEl = document.getElementById("catalogoList");
     const emptyEl = document.getElementById("catalogoEmpty");
@@ -1462,6 +1581,29 @@
           </div>
         `;
 
+        // Selector para corregir la categoría a mano si la IA se equivocó
+        // (o para asignarla si el producto todavía no tiene ninguna).
+        const catSelect = document.createElement("select");
+        catSelect.className = "cat-select";
+        CATEGORIAS.forEach((cat) => {
+          const opt = document.createElement("option");
+          opt.value = cat;
+          opt.textContent = cat;
+          if ((p.categoria || "Otros") === cat) opt.selected = true;
+          catSelect.appendChild(opt);
+        });
+        catSelect.addEventListener("click", (e) => e.stopPropagation());
+        catSelect.addEventListener("change", async () => {
+          try {
+            await setCategoriaProducto(p.clave, catSelect.value);
+            showToast(`"${p.nombre}" → ${catSelect.value}`);
+          } catch (err) {
+            console.error("Error al actualizar categoría:", err);
+            showToast(`No se pudo actualizar: ${err.code || err.message || "error desconocido"}`, 6000);
+          }
+        });
+        row.querySelector(".info").appendChild(catSelect);
+
         if (mergeMode) {
           const cb = document.createElement("input");
           cb.type = "checkbox";
@@ -1485,6 +1627,17 @@
     });
 
     renderMergeBar();
+  }
+
+  // Cambia la categoría de un producto en el catálogo y la propaga a los
+  // artículos que ya estén en la lista (pendientes o comprados) con ese
+  // mismo producto, para que quede consistente en todas partes.
+  async function setCategoriaProducto(clave, categoria) {
+    const batch = writeBatch(db);
+    batch.set(doc(db, "catalogo", clave), { categoria, updatedAt: serverTimestamp() }, { merge: true });
+    const itemsSnap = await getDocs(query(itemsRef, where("clave", "==", clave)));
+    itemsSnap.forEach((d) => batch.update(d.ref, { categoria }));
+    await batch.commit();
   }
 
   document.getElementById("catalogoSearch").addEventListener("input", renderCatalogoView);
