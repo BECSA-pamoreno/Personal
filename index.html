@@ -493,16 +493,38 @@
   }
   .install-banner.hidden { display: none; }
 
-  .price-hint {
-    font-size: 0.78rem;
-    color: var(--brand-dark);
-    background: var(--brand-soft);
-    padding: 8px 12px;
-    border-radius: var(--radius-sm);
+  .suggestions {
     margin-top: 10px;
-    font-weight: 600;
+    background: var(--bg);
+    border-radius: var(--radius-sm);
+    overflow: hidden;
   }
-  .price-hint.hidden { display: none; }
+  .suggestions.hidden { display: none; }
+  .suggestion-label {
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    padding: 8px 12px 2px;
+  }
+  .suggestion-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    background: none;
+    border: none;
+    text-align: left;
+    padding: 9px 12px;
+    cursor: pointer;
+    font-family: 'Inter', sans-serif;
+    font-size: 0.88rem;
+    color: var(--ink);
+  }
+  .suggestion-row:hover, .suggestion-row:active { background: var(--brand-soft); }
+  .suggestion-row .suggestion-name { flex: 1; font-weight: 500; }
+  .suggestion-row .suggestion-price { font-size: 0.72rem; color: var(--gold); font-weight: 700; flex-shrink: 0; }
 
   /* =====================================================================
      BARRA DE NAVEGACIÓN — fija abajo, estilo app nativa
@@ -727,12 +749,12 @@
       <div id="doneEmpty" class="empty-msg">Nada marcado todavía.</div>
       <button id="clearDoneBtn" class="clear-done-btn">Vaciar comprados</button>
 
-      <form class="add-form" id="addForm">
+      <form class="add-form" id="addForm" autocomplete="off">
         <input type="text" id="itemNameInput" placeholder="Añadir artículo..." autocomplete="off" required />
         <input type="text" id="itemQtyInput" class="qty" placeholder="cant." autocomplete="off" />
         <button type="submit" aria-label="Añadir">+</button>
       </form>
-      <div class="price-hint hidden" id="priceHint"></div>
+      <div class="suggestions hidden" id="catalogSuggestions"></div>
     </div>
   </div>
 
@@ -1085,54 +1107,95 @@
   }
 
   // ---------------------------------------------------------------------
-  // 4) Añadir artículo manualmente
+  // 4) Añadir artículo manualmente — con sugerencias del catálogo
   // ---------------------------------------------------------------------
+  const itemNameInput = document.getElementById("itemNameInput");
+  const itemQtyInput = document.getElementById("itemQtyInput");
+  const suggestionsEl = document.getElementById("catalogSuggestions");
+  let suggestionsTimer = null;
+
   document.getElementById("addForm").addEventListener("submit", async (e) => {
     e.preventDefault();
-    const nameEl = document.getElementById("itemNameInput");
-    const qtyEl = document.getElementById("itemQtyInput");
-    const name = nameEl.value.trim();
-    const quantity = qtyEl.value.trim();
+    const name = itemNameInput.value.trim();
+    const quantity = itemQtyInput.value.trim();
     if (!name) return;
 
     await addItemToList(name, quantity, getUserName());
 
-    nameEl.value = "";
-    qtyEl.value = "";
-    nameEl.focus();
-    hidePriceHint();
+    itemNameInput.value = "";
+    itemQtyInput.value = "";
+    itemNameInput.focus();
+    hideSuggestions();
   });
 
-  // ---------------------------------------------------------------------
-  // Aviso de precio mientras escribes: si hay historial de ese producto
-  // en "precios" (guardado a partir de tickets escaneados), muestra dónde
-  // se ha visto más barato.
-  // ---------------------------------------------------------------------
-  const priceHintEl = document.getElementById("priceHint");
-  let priceHintTimer = null;
+  // Busca en el catálogo de forma "bidireccional": encuentra coincidencias
+  // tanto si lo que escribes es parte de un nombre ya guardado (ej.
+  // escribes "leche" y existe "Leche entera 1L") como si un nombre ya
+  // guardado es parte de lo que escribes (ej. escribes "leche entera brik"
+  // y existe simplemente "Leche entera").
+  function findCatalogMatches(text) {
+    const q = normalize(text);
+    if (!q) return [];
+    return catalogoCache
+      .filter((p) => {
+        const pn = normalize(p.nombre);
+        return pn && (pn.includes(q) || q.includes(pn));
+      })
+      .slice(0, 6);
+  }
 
-  document.getElementById("itemNameInput").addEventListener("input", (e) => {
-    clearTimeout(priceHintTimer);
+  itemNameInput.addEventListener("input", (e) => {
+    clearTimeout(suggestionsTimer);
     const val = e.target.value.trim();
-    if (val.length < 3) { hidePriceHint(); return; }
-    priceHintTimer = setTimeout(() => checkPriceHint(val), 300);
+    if (val.length < 2) { hideSuggestions(); return; }
+    suggestionsTimer = setTimeout(() => renderSuggestions(val), 250);
   });
 
-  function checkPriceHint(name) {
-    const best = bestPriceFor(resolveProduct(name).clave);
-    if (best) {
-      priceHintEl.textContent = `💰 Más barato visto en ${best.supermercado || "un supermercado"}: ${best.precio.toFixed(2)} €`;
-      priceHintEl.classList.remove("hidden");
-    } else {
-      hidePriceHint();
-    }
+  itemNameInput.addEventListener("blur", () => {
+    // Pequeño retraso para que dé tiempo a procesar el click en una
+    // sugerencia antes de que el desplegable desaparezca.
+    setTimeout(hideSuggestions, 150);
+  });
+
+  function renderSuggestions(text) {
+    const matches = findCatalogMatches(text);
+    if (matches.length === 0) { hideSuggestions(); return; }
+
+    suggestionsEl.innerHTML = "";
+    const label = document.createElement("div");
+    label.className = "suggestion-label";
+    label.textContent = "Ya lo tienes en el catálogo";
+    suggestionsEl.appendChild(label);
+
+    matches.forEach((p) => {
+      const best = bestPriceFor(p.clave);
+      const row = document.createElement("button");
+      row.type = "button";
+      row.className = "suggestion-row";
+      row.innerHTML = `
+        <span class="suggestion-name">${escapeHtml(p.nombre)}</span>
+        ${best ? `<span class="suggestion-price">${best.precio.toFixed(2)} €</span>` : ""}
+      `;
+      row.addEventListener("mousedown", async (e) => {
+        // mousedown en vez de click, para que dispare antes que el blur
+        // del input y no se pierda la selección.
+        e.preventDefault();
+        const quantity = itemQtyInput.value.trim();
+        await addItemToList(p.nombre, quantity, getUserName());
+        itemNameInput.value = "";
+        itemQtyInput.value = "";
+        hideSuggestions();
+      });
+      suggestionsEl.appendChild(row);
+    });
+
+    suggestionsEl.classList.remove("hidden");
   }
 
-  function hidePriceHint() {
-    priceHintEl.classList.add("hidden");
-    priceHintEl.textContent = "";
+  function hideSuggestions() {
+    suggestionsEl.classList.add("hidden");
+    suggestionsEl.innerHTML = "";
   }
-
 
   // ---------------------------------------------------------------------
   // 5) Vaciar comprados
