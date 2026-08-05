@@ -389,6 +389,35 @@
     cursor: pointer;
   }
   .install-banner.hidden { display: none; }
+
+  .price-hint {
+    font-size: 0.76rem;
+    color: var(--primary);
+    margin-top: -12px;
+    margin-bottom: 12px;
+    padding-left: 2px;
+    min-height: 1em;
+  }
+  .price-hint.hidden { display: none; }
+
+  .detected-item { align-items: flex-start; flex-wrap: wrap; }
+  .detected-item .price { color: var(--ink-soft); font-size: 0.82rem; flex-shrink: 0; }
+  .detected-item .note {
+    flex-basis: 100%;
+    font-size: 0.72rem;
+    color: var(--primary);
+    padding-left: 28px;
+    margin-top: -2px;
+  }
+  .detected-item .note.dup { color: var(--ink-soft); font-style: italic; }
+
+  .scan-store {
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 700;
+    font-size: 0.8rem;
+    color: var(--primary);
+    margin-bottom: 12px;
+  }
 </style>
 </head>
 <body>
@@ -419,6 +448,7 @@
       <input type="text" id="itemQtyInput" class="qty" placeholder="cant." autocomplete="off" />
       <button type="submit" aria-label="Añadir">+</button>
     </form>
+    <div class="price-hint hidden" id="priceHint"></div>
   </div>
 </main>
 
@@ -475,6 +505,26 @@
   const app = initializeApp(firebaseConfig);
   const db = getFirestore(app);
   const itemsRef = collection(db, "items");
+  const preciosRef = collection(db, "precios");
+
+  // ---------------------------------------------------------------------
+  // Normalización de nombres de producto — es la clave que usamos tanto
+  // para evitar duplicados en la lista como para agrupar precios del
+  // mismo producto entre supermercados distintos.
+  // ---------------------------------------------------------------------
+  function normalize(name) {
+    return (name || "")
+      .toLowerCase()
+      .normalize("NFD").replace(/[\u0300-\u036f]/g, "") // quita acentos
+      .replace(/[^a-z0-9\s]/g, "")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  // Caché local del contenido actual de la lista (se actualiza en cada
+  // snapshot de Firestore) — nos sirve para detectar duplicados sin tener
+  // que hacer una consulta nueva cada vez.
+  let currentItemsCache = [];
 
   // ---------------------------------------------------------------------
   // 2) Nombre de usuario (guardado localmente en este móvil)
@@ -511,9 +561,11 @@
     pendingList.innerHTML = "";
     doneList.innerHTML = "";
     let pending = 0, done = 0;
+    currentItemsCache = [];
 
     snapshot.forEach((docSnap) => {
       const item = docSnap.data();
+      currentItemsCache.push({ id: docSnap.id, ...item, clave: item.clave || normalize(item.name) });
       const row = renderItemRow(docSnap.id, item);
       if (item.checked) {
         doneList.appendChild(row);
@@ -584,20 +636,84 @@
     const nameEl = document.getElementById("itemNameInput");
     const qtyEl = document.getElementById("itemQtyInput");
     const name = nameEl.value.trim();
+    const quantity = qtyEl.value.trim();
     if (!name) return;
 
-    await addDoc(itemsRef, {
-      name,
-      quantity: qtyEl.value.trim(),
-      checked: false,
-      addedBy: getUserName(),
-      createdAt: serverTimestamp()
-    });
+    const clave = normalize(name);
+
+    // Deduplicación: si ya hay un artículo pendiente igual, lo actualizamos
+    // en vez de crear uno nuevo.
+    const existing = currentItemsCache.find((it) => it.clave === clave && !it.checked);
+    if (existing) {
+      const mergedQty = mergeQuantities(existing.quantity, quantity);
+      await updateDoc(doc(db, "items", existing.id), { quantity: mergedQty });
+      showToast(`"${name}" ya estaba en la lista — cantidad actualizada`);
+    } else {
+      await addDoc(itemsRef, {
+        name,
+        quantity,
+        checked: false,
+        addedBy: getUserName(),
+        clave,
+        createdAt: serverTimestamp()
+      });
+    }
 
     nameEl.value = "";
     qtyEl.value = "";
     nameEl.focus();
+    hidePriceHint();
   });
+
+  function mergeQuantities(a, b) {
+    a = (a || "").trim();
+    b = (b || "").trim();
+    if (!a) return b;
+    if (!b) return a;
+    if (a === b) return a;
+    return `${a} + ${b}`;
+  }
+
+  // ---------------------------------------------------------------------
+  // Aviso de precio mientras escribes: si hay historial de ese producto
+  // en "precios" (guardado a partir de tickets escaneados), muestra dónde
+  // se ha visto más barato.
+  // ---------------------------------------------------------------------
+  const priceHintEl = document.getElementById("priceHint");
+  let priceHintTimer = null;
+
+  document.getElementById("itemNameInput").addEventListener("input", (e) => {
+    clearTimeout(priceHintTimer);
+    const val = e.target.value.trim();
+    if (val.length < 3) { hidePriceHint(); return; }
+    priceHintTimer = setTimeout(() => checkPriceHint(val), 450);
+  });
+
+  async function checkPriceHint(name) {
+    const clave = normalize(name);
+    try {
+      const snap = await getDocs(query(preciosRef, where("clave", "==", clave)));
+      if (snap.empty) { hidePriceHint(); return; }
+      let best = null;
+      snap.forEach((d) => {
+        const p = d.data();
+        if (typeof p.precio === "number" && (!best || p.precio < best.precio)) best = p;
+      });
+      if (best) {
+        priceHintEl.textContent = `💰 Más barato visto en ${best.supermercado || "un supermercado"}: ${best.precio.toFixed(2)} €`;
+        priceHintEl.classList.remove("hidden");
+      } else {
+        hidePriceHint();
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
+  function hidePriceHint() {
+    priceHintEl.classList.add("hidden");
+    priceHintEl.textContent = "";
+  }
 
   // ---------------------------------------------------------------------
   // 5) Vaciar comprados
@@ -652,12 +768,15 @@
 
     const itemsSchema = Schema.object({
       properties: {
+        supermercado: Schema.string(),
         articulos: Schema.array({
           items: Schema.object({
             properties: {
               nombre: Schema.string(),
-              cantidad: Schema.string()
-            }
+              cantidad: Schema.string(),
+              precio: Schema.number()
+            },
+            optionalProperties: ["precio"]
           })
         })
       }
@@ -687,38 +806,72 @@
         {
           inlineData: { mimeType: file.type || "image/jpeg", data: base64 }
         },
-        "Este es un ticket de la compra de un supermercado español. Extrae la lista de artículos comprados con su cantidad (si no hay cantidad clara, deja el campo vacío). Ignora totales, IVA, descuentos y datos de la tienda."
+        "Este es un ticket de la compra de un supermercado español. Identifica el nombre del supermercado (por el logo, la cabecera o el pie del ticket; si no se ve claro, pon \"Desconocido\"). Extrae la lista de artículos comprados con su cantidad (si no hay cantidad clara, deja el campo vacío) y su precio individual en euros, como número decimal sin símbolo de moneda (por ejemplo 1.25). Ignora totales, IVA, descuentos, puntos de fidelidad y datos fiscales de la tienda."
       ]);
 
       const text = result.response.text();
       const parsed = JSON.parse(text);
       const articulos = parsed.articulos || [];
+      const supermercado = parsed.supermercado || "Desconocido";
 
       if (articulos.length === 0) {
         scanBody.innerHTML = '<div class="scan-status">No se detectaron artículos. Prueba con una foto más nítida.</div>';
         return;
       }
 
-      renderScanResults(articulos);
+      renderScanResults(articulos, supermercado);
     } catch (err) {
       console.error(err);
       scanBody.innerHTML = `<div class="scan-status">${err.message || "No se pudo leer el ticket."}</div>`;
     }
   });
 
-  function renderScanResults(articulos) {
+  async function renderScanResults(articulos, supermercado) {
     scanBody.innerHTML = "";
+
+    const storeLabel = document.createElement("div");
+    storeLabel.className = "scan-store";
+    storeLabel.textContent = `🧾 Ticket de: ${supermercado}`;
+    scanBody.appendChild(storeLabel);
+
     const list = document.createElement("div");
-    articulos.forEach((a, i) => {
+
+    // Para cada artículo detectado: calculamos su clave, comprobamos si ya
+    // está en la lista (duplicado) y buscamos si hay un precio más barato
+    // visto antes en otro supermercado.
+    for (let i = 0; i < articulos.length; i++) {
+      const a = articulos[i];
+      a.clave = normalize(a.nombre);
+      const isDup = currentItemsCache.some((it) => it.clave === a.clave && !it.checked);
+
       const row = document.createElement("label");
       row.className = "detected-item";
+      const precioTxt = typeof a.precio === "number" ? `${a.precio.toFixed(2)} €` : "";
       row.innerHTML = `
-        <input type="checkbox" checked data-idx="${i}" />
+        <input type="checkbox" ${isDup ? "" : "checked"} data-idx="${i}" />
         <span class="name">${escapeHtml(a.nombre || "")}</span>
         <span class="qty">${escapeHtml(a.cantidad || "")}</span>
+        <span class="price">${precioTxt}</span>
       `;
+
+      let noteText = "";
+      if (isDup) {
+        noteText = "ya está en la lista — desmarcado para no duplicar";
+      } else if (typeof a.precio === "number") {
+        const cheaper = await findCheaperElsewhere(a.clave, a.precio, supermercado);
+        if (cheaper) {
+          noteText = `visto más barato en ${cheaper.supermercado}: ${cheaper.precio.toFixed(2)} €`;
+        }
+      }
+      if (noteText) {
+        const note = document.createElement("div");
+        note.className = "note" + (isDup ? " dup" : "");
+        note.textContent = noteText;
+        row.appendChild(note);
+      }
+
       list.appendChild(row);
-    });
+    }
     scanBody.appendChild(list);
 
     const addBtn = document.createElement("button");
@@ -726,24 +879,73 @@
     addBtn.style.marginTop = "14px";
     addBtn.textContent = "Añadir seleccionados a la lista";
     addBtn.addEventListener("click", async () => {
-      const checks = list.querySelectorAll("input[type=checkbox]:checked");
+      const checkboxes = list.querySelectorAll("input[type=checkbox]");
       const batch = writeBatch(db);
-      checks.forEach((c) => {
+      let addedCount = 0;
+
+      checkboxes.forEach((c) => {
         const a = articulos[Number(c.dataset.idx)];
-        const ref = doc(itemsRef);
-        batch.set(ref, {
-          name: a.nombre || "Artículo",
-          quantity: a.cantidad || "",
-          checked: false,
-          addedBy: getUserName() + " (ticket)",
-          createdAt: serverTimestamp()
-        });
+
+        // Guardamos el precio de este artículo en el histórico siempre que
+        // lo tengamos, esté marcado o no — así el comparador aprende de
+        // todos los tickets, no solo de lo que añadas a la lista.
+        if (typeof a.precio === "number") {
+          const priceRef = doc(preciosRef);
+          batch.set(priceRef, {
+            clave: a.clave,
+            nombre: a.nombre || "",
+            supermercado,
+            precio: a.precio,
+            fecha: serverTimestamp()
+          });
+        }
+
+        if (!c.checked) return;
+
+        const existing = currentItemsCache.find((it) => it.clave === a.clave && !it.checked);
+        if (existing) {
+          batch.update(doc(db, "items", existing.id), {
+            quantity: mergeQuantities(existing.quantity, a.cantidad || "")
+          });
+        } else {
+          const ref = doc(itemsRef);
+          batch.set(ref, {
+            name: a.nombre || "Artículo",
+            quantity: a.cantidad || "",
+            checked: false,
+            addedBy: getUserName() + " (ticket)",
+            clave: a.clave,
+            createdAt: serverTimestamp()
+          });
+        }
+        addedCount++;
       });
+
       await batch.commit();
       scanModal.classList.add("hidden");
-      showToast(`${checks.length} artículos añadidos`);
+      showToast(`${addedCount} artículos añadidos · precios guardados`);
     });
     scanBody.appendChild(addBtn);
+  }
+
+  // Busca si el mismo producto se ha visto más barato en OTRO supermercado
+  // distinto al del ticket actual.
+  async function findCheaperElsewhere(clave, currentPrice, currentStore) {
+    try {
+      const snap = await getDocs(query(preciosRef, where("clave", "==", clave)));
+      let best = null;
+      snap.forEach((d) => {
+        const p = d.data();
+        if (p.supermercado === currentStore) return;
+        if (typeof p.precio === "number" && p.precio < currentPrice && (!best || p.precio < best.precio)) {
+          best = p;
+        }
+      });
+      return best;
+    } catch (err) {
+      console.error(err);
+      return null;
+    }
   }
 
   function fileToBase64(file) {
