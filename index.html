@@ -854,7 +854,7 @@
       await setDoc(doc(db, "catalogo", clave), { nombre: name, clave, updatedAt: serverTimestamp() }, { merge: true });
     } catch (err) {
       console.error("Error al añadir artículo:", err);
-      showToast("No se pudo guardar. Revisa tu conexión.");
+      showToast(`No se pudo guardar: ${err.code || err.message || "error desconocido"}`, 6000);
     }
   }
 
@@ -1297,7 +1297,7 @@
         console.error("Error al guardar el ticket:", err);
         addBtn.disabled = false;
         addBtn.textContent = "Añadir seleccionados a la lista";
-        showToast("No se pudo guardar. Revisa tu conexión e inténtalo de nuevo.");
+        showToast(`No se pudo guardar: ${err.code || err.message || "error desconocido"}`, 6000);
       }
     });
     scanBody.appendChild(addBtn);
@@ -1598,12 +1598,12 @@
   // 9) Aviso pequeño (toast)
   // ---------------------------------------------------------------------
   let toastTimer = null;
-  function showToast(msg) {
+  function showToast(msg, duration) {
     const toast = document.getElementById("toast");
     toast.textContent = msg;
     toast.classList.add("show");
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => toast.classList.remove("show"), 2400);
+    toastTimer = setTimeout(() => toast.classList.remove("show"), duration || 2400);
   }
 
   // ---------------------------------------------------------------------
