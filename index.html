@@ -132,6 +132,21 @@
     text-transform: none;
   }
 
+  .category-header {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--brand-dark);
+    background: var(--brand-soft);
+    padding: 4px 10px;
+    border-radius: 20px;
+    display: inline-block;
+    margin: 14px 0 6px;
+  }
+  .category-header:first-child { margin-top: 2px; }
+
   /* =====================================================================
      LISTA — filas tipo fila limpia con checkbox circular
      ===================================================================== */
@@ -834,6 +849,11 @@
       showToast("Ese nombre no es válido");
       return;
     }
+    // Si el catálogo ya conoce este producto, heredamos su categoría.
+    // Si es la primera vez que se añade, queda en "Otros" hasta que un
+    // ticket escaneado lo clasifique automáticamente.
+    const catalogEntry = catalogoCache.find((c) => c.clave === clave);
+    const categoria = (catalogEntry && catalogEntry.categoria) || "Otros";
     try {
       const existing = currentItemsCache.find((it) => it.clave === clave && !it.checked);
       if (existing) {
@@ -848,10 +868,11 @@
           checked: false,
           addedBy: addedByLabel,
           clave,
+          categoria,
           createdAt: serverTimestamp()
         });
       }
-      await setDoc(doc(db, "catalogo", clave), { nombre: name, clave, updatedAt: serverTimestamp() }, { merge: true });
+      await setDoc(doc(db, "catalogo", clave), { nombre: name, clave, categoria, updatedAt: serverTimestamp() }, { merge: true });
     } catch (err) {
       console.error("Error al añadir artículo:", err);
       showToast(`No se pudo guardar: ${err.code || err.message || "error desconocido"}`, 6000);
@@ -909,8 +930,13 @@
   }
 
   // ---------------------------------------------------------------------
-  // 3) Lista en tiempo real (Firestore)
+  // 3) Lista en tiempo real (Firestore) — agrupada por categoría
   // ---------------------------------------------------------------------
+  const CATEGORIAS = [
+    "Frutas y verduras", "Carne y pescado", "Lácteos y huevos", "Panadería",
+    "Despensa", "Bebidas", "Congelados", "Limpieza", "Higiene", "Otros"
+  ];
+
   const pendingList = document.getElementById("pendingList");
   const doneList = document.getElementById("doneList");
   const pendingCount = document.getElementById("pendingCount");
@@ -920,32 +946,49 @@
 
   const q = query(itemsRef, orderBy("createdAt", "asc"));
   onSnapshot(q, (snapshot) => {
-    pendingList.innerHTML = "";
-    doneList.innerHTML = "";
-    let pending = 0, done = 0;
     currentItemsCache = [];
+    const pendingItems = [];
+    const doneItems = [];
 
     snapshot.forEach((docSnap) => {
-      const item = docSnap.data();
-      currentItemsCache.push({ id: docSnap.id, ...item, clave: item.clave || normalize(item.name) });
-      const row = renderItemRow(docSnap.id, item);
-      if (item.checked) {
-        doneList.appendChild(row);
-        done++;
-      } else {
-        pendingList.appendChild(row);
-        pending++;
-      }
+      const item = { id: docSnap.id, ...docSnap.data() };
+      item.clave = item.clave || normalize(item.name);
+      currentItemsCache.push(item);
+      if (item.checked) doneItems.push(item); else pendingItems.push(item);
     });
 
-    pendingCount.textContent = pending;
-    doneCount.textContent = done;
-    pendingEmpty.style.display = pending === 0 ? "block" : "none";
-    doneEmpty.style.display = done === 0 ? "block" : "none";
+    renderGroupedItems(pendingList, pendingItems);
+    renderGroupedItems(doneList, doneItems);
+
+    pendingCount.textContent = pendingItems.length;
+    doneCount.textContent = doneItems.length;
+    pendingEmpty.style.display = pendingItems.length === 0 ? "block" : "none";
+    doneEmpty.style.display = doneItems.length === 0 ? "block" : "none";
   }, (err) => {
     console.error(err);
-    showToast("No se pudo conectar con la base de datos.");
+    showToast(`No se pudo conectar: ${err.code || err.message}`, 6000);
   });
+
+  // Agrupa una lista de artículos por categoría (en el orden fijo de
+  // CATEGORIAS) y los pinta dentro del contenedor indicado, con una
+  // cabecera por cada categoría que tenga al menos un artículo.
+  function renderGroupedItems(containerEl, items) {
+    containerEl.innerHTML = "";
+    const groups = {};
+    items.forEach((item) => {
+      const cat = CATEGORIAS.includes(item.categoria) ? item.categoria : "Otros";
+      (groups[cat] = groups[cat] || []).push(item);
+    });
+    CATEGORIAS.forEach((cat) => {
+      const group = groups[cat];
+      if (!group || !group.length) return;
+      const header = document.createElement("div");
+      header.className = "category-header";
+      header.textContent = cat;
+      containerEl.appendChild(header);
+      group.forEach((item) => containerEl.appendChild(renderItemRow(item.id, item)));
+    });
+  }
 
   function renderItemRow(id, item) {
     const li = document.createElement("li");
@@ -955,7 +998,10 @@
     checkBtn.className = "check-btn";
     checkBtn.textContent = item.checked ? "✓" : "";
     checkBtn.addEventListener("click", () => {
-      updateDoc(doc(db, "items", id), { checked: !item.checked });
+      updateDoc(doc(db, "items", id), { checked: !item.checked }).catch((err) => {
+        console.error(err);
+        showToast(`No se pudo actualizar: ${err.code || err.message}`, 6000);
+      });
     });
 
     const name = document.createElement("span");
@@ -972,7 +1018,12 @@
     const delBtn = document.createElement("button");
     delBtn.className = "del-btn";
     delBtn.textContent = "✕";
-    delBtn.addEventListener("click", () => deleteDoc(doc(db, "items", id)));
+    delBtn.addEventListener("click", () => {
+      deleteDoc(doc(db, "items", id)).catch((err) => {
+        console.error(err);
+        showToast(`No se pudo borrar: ${err.code || err.message}`, 6000);
+      });
+    });
 
     li.appendChild(checkBtn);
     li.appendChild(name);
@@ -1100,7 +1151,8 @@
               nombre: Schema.string(),
               nombre_ticket: Schema.string(),
               cantidad: Schema.string(),
-              precio: Schema.number()
+              precio: Schema.number(),
+              categoria: Schema.enumString({ enum: CATEGORIAS })
             },
             optionalProperties: ["precio", "nombre_ticket"]
           })
@@ -1141,7 +1193,8 @@
 3. Ya tenemos guardados estos productos en nuestro catálogo: [${catalogoConocido || "ninguno todavía"}]. Si un artículo del ticket es claramente el mismo producto que uno de esa lista (aunque el ticket lo abrevie distinto), usa EXACTAMENTE ese mismo nombre del catálogo en "nombre", para que quede bien emparejado. Si no coincide con ninguno, propón un nombre nuevo y claro.
 4. Guarda también el texto literal tal como aparece impreso en el ticket, en "nombre_ticket".
 5. Incluye la cantidad si se ve clara (si no, deja el campo vacío) y el precio individual en euros como número decimal sin símbolo de moneda (por ejemplo 1.25).
-6. Ignora totales, IVA, descuentos, puntos de fidelidad y datos fiscales de la tienda.`;
+6. Clasifica cada artículo en "categoria" eligiendo la que mejor encaje de esta lista exacta: ${CATEGORIAS.join(", ")}. Usa "Otros" solo si de verdad no encaja en ninguna otra.
+7. Ignora totales, IVA, descuentos, puntos de fidelidad y datos fiscales de la tienda.`;
 
       const result = await model.generateContent([
         {
@@ -1159,7 +1212,18 @@
           // antes con otro, lo mandamos directamente al canónico en vez de
           // dejar que se trate como un producto nuevo.
           const resolved = resolveProduct(a.nombre);
-          return { ...a, nombre: resolved.nombre, clave: resolved.clave };
+
+          // Categoría: si el catálogo ya tiene una categoría "de verdad"
+          // para este producto (no "Otros"), la respetamos para que no
+          // cambie de sitio en cada ticket. Si no, usamos la que propone
+          // Gemini en este escaneo (así un producto que estaba sin
+          // clasificar se clasifica solo en cuanto aparece en un ticket).
+          const catalogEntry = catalogoCache.find((c) => c.clave === resolved.clave);
+          const categoria = (catalogEntry && catalogEntry.categoria && catalogEntry.categoria !== "Otros")
+            ? catalogEntry.categoria
+            : (a.categoria || "Otros");
+
+          return { ...a, nombre: resolved.nombre, clave: resolved.clave, categoria };
         });
       const supermercado = parsed.supermercado || "Desconocido";
 
@@ -1270,29 +1334,37 @@
 
           if (!c.checked) return;
 
+          // Un ticket es la confirmación de una compra ya hecha: si el
+          // artículo coincide con algo que tenías pendiente, lo marcamos
+          // como comprado (no se queda esperando en la lista). Si es un
+          // artículo nuevo que no estaba en la lista, entra directamente
+          // como comprado también, por el mismo motivo.
           const existing = currentItemsCache.find((it) => it.clave === a.clave && !it.checked);
           if (existing) {
             batch.update(doc(db, "items", existing.id), {
-              quantity: mergeQuantities(existing.quantity, a.cantidad || "")
+              checked: true,
+              quantity: mergeQuantities(existing.quantity, a.cantidad || ""),
+              categoria: a.categoria
             });
           } else {
             const ref = doc(itemsRef);
             batch.set(ref, {
               name: a.nombre || "Artículo",
               quantity: a.cantidad || "",
-              checked: false,
+              checked: true,
               addedBy: getUserName() + " (ticket)",
               clave: a.clave,
+              categoria: a.categoria,
               createdAt: serverTimestamp()
             });
           }
-          batch.set(doc(db, "catalogo", a.clave), { nombre: a.nombre, clave: a.clave, updatedAt: serverTimestamp() }, { merge: true });
+          batch.set(doc(db, "catalogo", a.clave), { nombre: a.nombre, clave: a.clave, categoria: a.categoria, updatedAt: serverTimestamp() }, { merge: true });
           addedCount++;
         });
 
         await batch.commit();
         scanModal.classList.add("hidden");
-        showToast(`${addedCount} artículos añadidos · precios guardados`);
+        showToast(`${addedCount} artículos marcados como comprados · precios guardados`);
       } catch (err) {
         console.error("Error al guardar el ticket:", err);
         addBtn.disabled = false;
@@ -1363,36 +1435,52 @@
     const filtered = catalogoCache.filter((p) => !filter || (p.nombre || "").toLowerCase().includes(filter));
     emptyEl.style.display = filtered.length === 0 ? "block" : "none";
 
+    const groups = {};
     filtered.forEach((p) => {
-      const best = bestPriceFor(p.clave);
-      const row = document.createElement("div");
-      row.className = "catalogo-row";
-      row.innerHTML = `
-        <div class="info">
-          <div class="catalogo-name">${escapeHtml(p.nombre || "")}</div>
-          ${best ? `<div class="catalogo-price">💰 ${best.precio.toFixed(2)} € en ${escapeHtml(best.supermercado || "")}</div>` : ""}
-        </div>
-      `;
+      const cat = CATEGORIAS.includes(p.categoria) ? p.categoria : "Otros";
+      (groups[cat] = groups[cat] || []).push(p);
+    });
 
-      if (mergeMode) {
-        const cb = document.createElement("input");
-        cb.type = "checkbox";
-        cb.checked = selectedMergeClaves.has(p.clave);
-        cb.addEventListener("change", () => {
-          if (cb.checked) selectedMergeClaves.add(p.clave); else selectedMergeClaves.delete(p.clave);
-          renderMergeBar();
-        });
-        row.appendChild(cb);
-      } else {
-        const addBtn = document.createElement("button");
-        addBtn.className = "add-btn";
-        addBtn.textContent = "+";
-        addBtn.title = "Añadir a la lista";
-        addBtn.addEventListener("click", () => addItemToList(p.nombre, "", getUserName() + " (catálogo)"));
-        row.appendChild(addBtn);
-      }
+    CATEGORIAS.forEach((cat) => {
+      const group = groups[cat];
+      if (!group || !group.length) return;
 
-      listEl.appendChild(row);
+      const header = document.createElement("div");
+      header.className = "category-header";
+      header.textContent = cat;
+      listEl.appendChild(header);
+
+      group.forEach((p) => {
+        const best = bestPriceFor(p.clave);
+        const row = document.createElement("div");
+        row.className = "catalogo-row";
+        row.innerHTML = `
+          <div class="info">
+            <div class="catalogo-name">${escapeHtml(p.nombre || "")}</div>
+            ${best ? `<div class="catalogo-price">💰 ${best.precio.toFixed(2)} € en ${escapeHtml(best.supermercado || "")}</div>` : ""}
+          </div>
+        `;
+
+        if (mergeMode) {
+          const cb = document.createElement("input");
+          cb.type = "checkbox";
+          cb.checked = selectedMergeClaves.has(p.clave);
+          cb.addEventListener("change", () => {
+            if (cb.checked) selectedMergeClaves.add(p.clave); else selectedMergeClaves.delete(p.clave);
+            renderMergeBar();
+          });
+          row.appendChild(cb);
+        } else {
+          const addBtn = document.createElement("button");
+          addBtn.className = "add-btn";
+          addBtn.textContent = "+";
+          addBtn.title = "Añadir a la lista";
+          addBtn.addEventListener("click", () => addItemToList(p.nombre, "", getUserName() + " (catálogo)"));
+          row.appendChild(addBtn);
+        }
+
+        listEl.appendChild(row);
+      });
     });
 
     renderMergeBar();
@@ -1527,12 +1615,22 @@
       showToast("La lista actual está vacía");
       return;
     }
-    const batch = writeBatch(db);
-    currentItemsCache.forEach((it) => {
-      batch.set(doc(db, "catalogo", it.clave), { nombre: it.name, clave: it.clave, updatedAt: serverTimestamp() }, { merge: true });
-    });
-    await batch.commit();
-    showToast("Catálogo sincronizado con la lista actual");
+    try {
+      const batch = writeBatch(db);
+      currentItemsCache.forEach((it) => {
+        batch.set(doc(db, "catalogo", it.clave), {
+          nombre: it.name,
+          clave: it.clave,
+          categoria: it.categoria || "Otros",
+          updatedAt: serverTimestamp()
+        }, { merge: true });
+      });
+      await batch.commit();
+      showToast("Catálogo sincronizado con la lista actual");
+    } catch (err) {
+      console.error("Error al sincronizar catálogo:", err);
+      showToast(`No se pudo sincronizar: ${err.code || err.message || "error desconocido"}`, 6000);
+    }
   });
 
   // ---------------------------------------------------------------------
