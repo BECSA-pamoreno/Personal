@@ -157,12 +157,19 @@
     flex-wrap: wrap;
     align-items: center;
     gap: 10px;
-    padding: 11px 0;
+    padding: 11px 10px;
+    margin: 0 -10px;
+    border-radius: var(--radius-sm);
     border-bottom: 1px solid var(--border);
     font-size: 0.94rem;
   }
 
   .item-row:last-child { border-bottom: none; }
+
+  .item-row.done {
+    background: var(--brand-soft);
+    border-bottom-color: transparent;
+  }
 
   .check-btn {
     flex-shrink: 0;
@@ -185,7 +192,7 @@
   }
 
   .item-name { flex: 1; min-width: 120px; font-weight: 500; }
-  .item-row.done .item-name { color: var(--ink-faint); text-decoration: line-through; }
+  .item-row.done .item-name { color: var(--brand-dark); text-decoration: line-through; }
 
   .leader { display: none; }
 
@@ -414,7 +421,7 @@
     border-radius: var(--radius-sm);
     margin-left: 30px;
   }
-  .detected-item .note.dup { color: var(--ink-muted); background: var(--bg); }
+  .detected-item .note.dup { color: var(--brand-dark); background: var(--brand-soft); }
   .detected-item .ticket-raw {
     flex-basis: 100%;
     font-size: 0.7rem;
@@ -653,26 +660,47 @@
   /* =====================================================================
      PRECIOS
      ===================================================================== */
-  .price-group { margin-bottom: 20px; }
-  .price-group .section-label { margin: 0 0 8px; }
+  .price-group {
+    margin-bottom: 18px;
+    padding-bottom: 18px;
+    border-bottom: 1px solid var(--border);
+  }
+  .price-group:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
+
+  .price-product-name {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--ink);
+    margin-bottom: 6px;
+  }
+
+  .price-winner {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--gold-soft);
+    border-radius: var(--radius-sm);
+    padding: 8px 10px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: #A87A15;
+  }
+  .price-winner-amount { font-weight: 700; }
+  .price-winner-date { margin-left: auto; font-weight: 500; color: #B08A3D; font-size: 0.72rem; }
+
+  .price-others { margin-top: 4px; }
   .price-row {
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 7px 0;
-    font-size: 0.86rem;
+    padding: 5px 10px;
+    font-size: 0.78rem;
   }
-  .price-row .store { color: var(--ink); font-weight: 500; }
+  .price-row .store { color: var(--ink-muted); font-weight: 500; }
   .price-row .leader { display: block; flex: 1; border-bottom: 1px dotted var(--border); margin-bottom: 3px; }
-  .price-row .date { color: var(--ink-faint); font-size: 0.72rem; flex-shrink: 0; }
-  .price-row .price { font-weight: 600; color: var(--ink-muted); }
-  .price-row.cheapest {
-    background: var(--gold-soft);
-    border-radius: var(--radius-sm);
-    padding: 7px 10px;
-    margin: 0 -10px;
-  }
-  .price-row.cheapest .price { color: #A87A15; font-weight: 700; }
+  .price-row .date { color: var(--ink-faint); font-size: 0.7rem; flex-shrink: 0; }
+  .price-row .price { font-weight: 500; color: var(--ink-faint); }
 </style>
 </head>
 <body>
@@ -1366,7 +1394,7 @@ Clasifica CADA producto de la lista en una de estas categorías exactas: ${CATEG
         ? `<span class="ticket-raw">en el ticket: "${escapeHtml(a.nombre_ticket)}"</span>`
         : "";
       row.innerHTML = `
-        <input type="checkbox" ${isDup ? "" : "checked"} data-idx="${i}" />
+        <input type="checkbox" checked data-idx="${i}" />
         <span class="name">${escapeHtml(a.nombre || "")}</span>
         <span class="qty">${escapeHtml(a.cantidad || "")}</span>
         <span class="price">${precioTxt}</span>
@@ -1375,7 +1403,7 @@ Clasifica CADA producto de la lista en una de estas categorías exactas: ${CATEG
 
       let noteText = "";
       if (isDup) {
-        noteText = "ya está en la lista — desmarcado para no duplicar";
+        noteText = "ya estaba pendiente — se marcará como comprado";
       } else if (typeof a.precio === "number") {
         const cheaper = findCheaperElsewhere(a.clave, a.precio, detectedStore);
         if (cheaper) {
@@ -1812,33 +1840,52 @@ Clasifica CADA producto de la lista en una de estas categorías exactas: ${CATEG
       groups[p.clave].entries.push(p);
     });
 
-    const claves = Object.keys(groups);
+    // Ordenamos los productos alfabéticamente, para que sean fáciles de
+    // encontrar cuando hay muchos.
+    const claves = Object.keys(groups).sort((a, b) => groups[a].nombre.localeCompare(groups[b].nombre, "es"));
     emptyEl.style.display = claves.length === 0 ? "block" : "none";
 
     claves.forEach((clave) => {
       const group = groups[clave];
       group.entries.sort((a, b) => a.precio - b.precio);
+      const winner = group.entries[0];
+      const others = group.entries.slice(1);
 
       const wrap = document.createElement("div");
       wrap.className = "price-group";
 
       const title = document.createElement("div");
-      title.className = "section-label";
+      title.className = "price-product-name";
       title.textContent = group.nombre;
       wrap.appendChild(title);
 
-      group.entries.forEach((e, idx) => {
-        const fecha = e.fecha && e.fecha.toDate ? e.fecha.toDate().toLocaleDateString("es-ES") : "";
-        const row = document.createElement("div");
-        row.className = "price-row" + (idx === 0 ? " cheapest" : "");
-        row.innerHTML = `
-          <span class="store">${idx === 0 ? "⭐ " : ""}${escapeHtml(e.supermercado || "Desconocido")}</span>
-          <span class="leader"></span>
-          <span class="price">${e.precio.toFixed(2)} €</span>
-          <span class="date">${fecha}</span>
-        `;
-        wrap.appendChild(row);
-      });
+      const winnerRow = document.createElement("div");
+      winnerRow.className = "price-winner";
+      const fecha = winner.fecha && winner.fecha.toDate ? winner.fecha.toDate().toLocaleDateString("es-ES") : "";
+      winnerRow.innerHTML = `
+        <span>⭐ ${escapeHtml(winner.supermercado || "Desconocido")}</span>
+        <span class="price-winner-amount">${winner.precio.toFixed(2)} €</span>
+        <span class="price-winner-date">${fecha}</span>
+      `;
+      wrap.appendChild(winnerRow);
+
+      if (others.length > 0) {
+        const othersWrap = document.createElement("div");
+        othersWrap.className = "price-others";
+        others.forEach((e) => {
+          const fechaOtro = e.fecha && e.fecha.toDate ? e.fecha.toDate().toLocaleDateString("es-ES") : "";
+          const row = document.createElement("div");
+          row.className = "price-row";
+          row.innerHTML = `
+            <span class="store">${escapeHtml(e.supermercado || "Desconocido")}</span>
+            <span class="leader"></span>
+            <span class="price">${e.precio.toFixed(2)} €</span>
+            <span class="date">${fechaOtro}</span>
+          `;
+          othersWrap.appendChild(row);
+        });
+        wrap.appendChild(othersWrap);
+      }
 
       listEl.appendChild(wrap);
     });
