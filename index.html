@@ -900,10 +900,27 @@
     renderCatalogoView();
   }, (err) => console.error(err));
 
+  // Para un producto, devuelve solo el precio MÁS RECIENTE visto en cada
+  // supermercado (uno por tienda), ordenados de más barato a más caro.
+  // Es la única fuente de verdad para "qué es lo más barato ahora mismo":
+  // si un precio se actualiza con una fecha más nueva, sustituye al
+  // anterior en vez de compararse contra un histórico ya desactualizado.
+  function getLatestPricesByStore(clave) {
+    const latestByStore = {};
+    preciosCache.forEach((p) => {
+      if (p.clave !== clave || typeof p.precio !== "number") return;
+      const store = p.supermercado || "Desconocido";
+      const pTime = p.fecha && p.fecha.toDate ? p.fecha.toDate().getTime() : 0;
+      const current = latestByStore[store];
+      const cTime = current && current.fecha && current.fecha.toDate ? current.fecha.toDate().getTime() : -1;
+      if (!current || pTime >= cTime) latestByStore[store] = p;
+    });
+    return Object.values(latestByStore).sort((a, b) => a.precio - b.precio);
+  }
+
   function bestPriceFor(clave) {
-    const matches = preciosCache.filter((p) => p.clave === clave && typeof p.precio === "number");
-    if (!matches.length) return null;
-    return matches.reduce((min, p) => (p.precio < min.precio ? p : min), matches[0]);
+    const list = getLatestPricesByStore(clave);
+    return list.length ? list[0] : null;
   }
 
   // Añade (o fusiona si ya existe) un artículo en la lista, y de paso lo
@@ -1101,6 +1118,19 @@
       by.className = "item-added-by";
       by.textContent = "añadido por " + item.addedBy;
       li.appendChild(by);
+    }
+
+    // Solo para pendientes: si conocemos dónde está más barato (mismo
+    // cálculo que la vista de Precios, con el dato más reciente por
+    // supermercado), lo mostramos aquí para no tener que ir a mirarlo.
+    if (!item.checked) {
+      const best = bestPriceFor(item.clave);
+      if (best) {
+        const priceNote = document.createElement("span");
+        priceNote.className = "item-added-by";
+        priceNote.textContent = `💰 más barato en ${best.supermercado || "un supermercado"}: ${best.precio.toFixed(2)} €`;
+        li.appendChild(priceNote);
+      }
     }
 
     return li;
@@ -1568,11 +1598,10 @@ Clasifica CADA producto de la lista en una de estas categorías exactas: ${CATEG
   // Busca si el mismo producto se ha visto más barato en OTRO supermercado
   // distinto al del ticket actual (sobre la caché de precios en memoria).
   function findCheaperElsewhere(clave, currentPrice, currentStore) {
-    const candidates = preciosCache.filter(
-      (p) => p.clave === clave && p.supermercado !== currentStore && typeof p.precio === "number" && p.precio < currentPrice
+    const candidates = getLatestPricesByStore(clave).filter(
+      (p) => p.supermercado !== currentStore && p.precio < currentPrice
     );
-    if (!candidates.length) return null;
-    return candidates.reduce((min, p) => (p.precio < min.precio ? p : min), candidates[0]);
+    return candidates.length ? candidates[0] : null;
   }
 
   function fileToBase64(file) {
@@ -1895,31 +1924,36 @@ Clasifica CADA producto de la lista en una de estas categorías exactas: ${CATEG
     const filter = (document.getElementById("preciosSearch").value || "").trim().toLowerCase();
     listEl.innerHTML = "";
 
-    const groups = {};
+    // Solo necesitamos, por cada producto, su nombre y su clave — el
+    // desglose por tienda lo da getLatestPricesByStore (ya deduplicado por
+    // fecha más reciente), así que aquí solo recogemos qué productos
+    // existen y con qué nombre mostrarlos.
+    const productos = {};
     preciosCache.forEach((p) => {
       if (typeof p.precio !== "number") return;
       if (filter && !(p.nombre || "").toLowerCase().includes(filter)) return;
-      if (!groups[p.clave]) groups[p.clave] = { nombre: p.nombre, entries: [] };
-      groups[p.clave].entries.push(p);
+      const pTime = p.fecha && p.fecha.toDate ? p.fecha.toDate().getTime() : 0;
+      const current = productos[p.clave];
+      if (!current || pTime >= current.time) productos[p.clave] = { nombre: p.nombre, time: pTime };
     });
 
     // Ordenamos los productos alfabéticamente, para que sean fáciles de
     // encontrar cuando hay muchos.
-    const claves = Object.keys(groups).sort((a, b) => groups[a].nombre.localeCompare(groups[b].nombre, "es"));
+    const claves = Object.keys(productos).sort((a, b) => productos[a].nombre.localeCompare(productos[b].nombre, "es"));
     emptyEl.style.display = claves.length === 0 ? "block" : "none";
 
     claves.forEach((clave) => {
-      const group = groups[clave];
-      group.entries.sort((a, b) => a.precio - b.precio);
-      const winner = group.entries[0];
-      const others = group.entries.slice(1);
+      const entries = getLatestPricesByStore(clave);
+      if (!entries.length) return;
+      const winner = entries[0];
+      const others = entries.slice(1);
 
       const wrap = document.createElement("div");
       wrap.className = "price-group";
 
       const title = document.createElement("div");
       title.className = "price-product-name";
-      title.textContent = group.nombre;
+      title.textContent = productos[clave].nombre;
       wrap.appendChild(title);
 
       const winnerRow = document.createElement("div");
