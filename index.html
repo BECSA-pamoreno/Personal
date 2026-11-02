@@ -3,13 +3,16 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<title>Lista de la Compra</title>
+<title>La Compra</title>
 
 <!-- PWA -->
 <link rel="manifest" href="manifest.json" />
-<meta name="theme-color" content="#F4F6F2" />
+<meta name="color-scheme" content="light dark" />
+<meta name="theme-color" content="#F4F6F2" media="(prefers-color-scheme: light)" />
+<meta name="theme-color" content="#0D1411" media="(prefers-color-scheme: dark)" />
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="default" />
 <meta name="apple-mobile-web-app-title" content="La Compra" />
 <link rel="icon" href="icons/icon-192.png" />
@@ -20,717 +23,876 @@
 
 <style>
   /* =====================================================================
-     TOKENS
+     TOKENS — claro y oscuro (se adapta solo al modo del móvil)
      ===================================================================== */
   :root {
     --bg: #F4F6F2;
     --surface: #FFFFFF;
-    --ink: #14181A;
-    --ink-muted: #6E7873;
-    --ink-faint: #A2ABA4;
-    --brand: #147D5F;
-    --brand-dark: #0E5F47;
-    --brand-soft: #E3F2EB;
-    --gold: #DFA62E;
-    --gold-soft: #FBF0D9;
-    --danger: #D1483B;
-    --danger-soft: #FBE9E6;
-    --border: #E7EAE4;
-    --shadow-sm: 0 1px 2px rgba(20, 24, 21, 0.05);
-    --shadow-md: 0 10px 30px -12px rgba(20, 24, 21, 0.16);
-    --radius-lg: 20px;
-    --radius-md: 14px;
-    --radius-sm: 10px;
+    --surface-2: #F0F3EE;
+    --ink: #101915;
+    --ink-2: #4B5A53;
+    --ink-3: #66746C;
+    --line: #E4E8E1;
+    --line-strong: #CCD5CB;
+
+    --brand: #0E7C5A;
+    --brand-ink: #0A5C43;
+    --brand-soft: #E2F3EA;
+    --on-brand: #FFFFFF;
+
+    --gold: #A86A0C;
+    --gold-soft: #FFF3D6;
+    --danger: #C8402F;
+
+    --shadow-1: 0 1px 2px rgba(16, 25, 21, 0.06), 0 1px 1px rgba(16, 25, 21, 0.03);
+    --shadow-2: 0 14px 34px -14px rgba(16, 25, 21, 0.32);
+
+    --r-card: 20px;
+    --r-ctl: 14px;
+    --r-pill: 999px;
+    --nav-h: 80px;
+    --col: 560px;
   }
 
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0D1411;
+      --surface: #151F1A;
+      --surface-2: #1C2822;
+      --ink: #EDF3EF;
+      --ink-2: #B4C1B9;
+      --ink-3: #7F8F86;
+      --line: #24312B;
+      --line-strong: #34453C;
+
+      --brand: #3CC090;
+      --brand-ink: #86E3BE;
+      --brand-soft: #12342A;
+      --on-brand: #06231A;
+
+      --gold: #E9B44C;
+      --gold-soft: #2C2511;
+      --danger: #F27B6B;
+
+      --shadow-1: none;
+      --shadow-2: 0 14px 34px -14px rgba(0, 0, 0, 0.75);
+    }
+  }
+
+  /* =====================================================================
+     BASE
+     ===================================================================== */
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html { -webkit-text-size-adjust: 100%; }
 
   body {
     margin: 0;
     background: var(--bg);
     color: var(--ink);
-    font-family: 'Inter', sans-serif;
+    font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+    font-size: 16px;
+    line-height: 1.4;
     -webkit-font-smoothing: antialiased;
-    padding-bottom: 148px;
     min-height: 100vh;
+    padding-bottom: calc(var(--nav-h) + 96px + env(safe-area-inset-bottom));
   }
 
   h1, h2, .display {
-    font-family: 'Plus Jakarta Sans', sans-serif;
-    letter-spacing: -0.01em;
+    font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
+    letter-spacing: -0.02em;
   }
+
+  button { font-family: inherit; }
+  button, select, input { color: inherit; }
+  .hidden { display: none !important; }
+
+  :focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
 
   /* =====================================================================
-     HEADER — minimal, sin banda de color
+     CABECERA
      ===================================================================== */
-  header {
-    padding: 22px 20px 10px;
-    text-align: left;
-    max-width: 480px;
+  .app-header {
+    max-width: var(--col);
     margin: 0 auto;
-  }
-
-  header h1 {
-    margin: 0;
-    font-size: 1.4rem;
-    font-weight: 800;
-    color: var(--ink);
+    padding: calc(18px + env(safe-area-inset-top)) 20px 10px;
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 12px;
   }
-
-  header .subtitle {
-    font-size: 0.82rem;
-    color: var(--ink-muted);
-    margin-top: 2px;
+  .brand-mark {
+    width: 44px; height: 44px;
+    flex-shrink: 0;
+    border-radius: 14px;
+    background: var(--brand);
+    color: var(--on-brand);
+    display: grid; place-items: center;
+    box-shadow: 0 8px 16px -8px var(--brand);
+  }
+  .brand-mark svg { width: 23px; height: 23px; }
+  .app-header h1 { margin: 0; font-size: 1.35rem; font-weight: 800; line-height: 1.1; }
+  .app-header p {
+    margin: 3px 0 0;
+    font-size: 0.8rem;
     font-weight: 500;
+    color: var(--ink-3);
+    display: flex; align-items: center; gap: 6px;
+  }
+  .live-dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--brand);
+    box-shadow: 0 0 0 0 var(--brand);
+    animation: pulse 2.4s ease-out infinite;
+  }
+  @keyframes pulse {
+    0%   { box-shadow: 0 0 0 0 color-mix(in srgb, var(--brand) 55%, transparent); }
+    70%  { box-shadow: 0 0 0 7px transparent; }
+    100% { box-shadow: 0 0 0 0 transparent; }
   }
 
-  .torn-edge { display: none; }
+  .install-banner { max-width: var(--col); margin: 6px auto 0; padding: 0 16px; }
+  .install-banner button {
+    width: 100%;
+    background: var(--brand-soft);
+    border: 1px solid var(--brand);
+    color: var(--brand-ink);
+    border-radius: var(--r-ctl);
+    padding: 12px;
+    font-weight: 700;
+    font-size: 0.9rem;
+    cursor: pointer;
+  }
 
   /* =====================================================================
-     LAYOUT / CARD
+     LAYOUT
      ===================================================================== */
-  main {
-    max-width: 480px;
-    margin: 0 auto;
-    padding: 4px 16px 0;
+  main { max-width: var(--col); margin: 0 auto; padding: 8px 16px 0; }
+  #viewLista, #viewCatalogo, #viewPrecios {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
   }
 
-  .ticket {
+  .card {
     background: var(--surface);
-    border: none;
-    border-radius: var(--radius-lg);
-    padding: 20px 18px;
-    box-shadow: var(--shadow-sm);
+    border: 1px solid var(--line);
+    border-radius: var(--r-card);
+    padding: 16px 16px 10px;
+    box-shadow: var(--shadow-1);
   }
 
   .section-label {
+    display: flex; align-items: center; gap: 8px;
+    margin: 0 0 4px;
     font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: 1rem;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    color: var(--ink);
+  }
+  .section-label .count {
+    background: var(--brand-soft);
+    color: var(--brand-ink);
+    border-radius: var(--r-pill);
+    padding: 2px 10px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0;
+  }
+
+  .empty-msg {
+    text-align: center;
+    color: var(--ink-3);
+    font-size: 0.9rem;
+    padding: 18px 8px 14px;
+  }
+
+  /* =====================================================================
+     RESUMEN (tarjeta principal de la lista)
+     ===================================================================== */
+  .summary {
+    position: relative;
+    overflow: hidden;
+    background: var(--brand);
+    color: var(--on-brand);
+    border-radius: var(--r-card);
+    padding: 20px 20px 18px;
+  }
+  .summary::after {
+    content: "";
+    position: absolute;
+    right: -36px; top: -46px;
+    width: 160px; height: 160px;
+    border-radius: 50%;
+    background: currentColor;
+    opacity: 0.09;
+  }
+  .summary-top {
+    position: relative; z-index: 1;
+    display: flex; align-items: flex-end; justify-content: space-between; gap: 12px;
+  }
+  .summary-main { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+  .summary-num {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: 2.8rem;
+    font-weight: 800;
+    line-height: 1;
+    letter-spacing: -0.04em;
+  }
+  .summary-label { font-size: 0.95rem; font-weight: 600; opacity: 0.92; }
+  .summary-done {
+    flex-shrink: 0;
+    font-size: 0.8rem;
+    font-weight: 700;
+    padding: 5px 11px;
+    border-radius: var(--r-pill);
+    background: rgba(255, 255, 255, 0.2);
+    background: color-mix(in srgb, currentColor 18%, transparent);
+  }
+  .bar {
+    position: relative; z-index: 1;
+    margin-top: 16px;
+    height: 8px;
+    border-radius: var(--r-pill);
+    background: rgba(255, 255, 255, 0.25);
+    background: color-mix(in srgb, currentColor 22%, transparent);
+    overflow: hidden;
+  }
+  .bar-fill {
+    height: 100%;
+    width: 0;
+    border-radius: inherit;
+    background: currentColor;
+    transition: width 0.45s cubic-bezier(.2, .8, .2, 1);
+  }
+
+  /* =====================================================================
+     AÑADIR ARTÍCULO + SUGERENCIAS
+     ===================================================================== */
+  .add-card { position: relative; z-index: 5; }
+
+  form.add-form {
+    display: flex; align-items: center; gap: 8px;
+    background: var(--surface);
+    border: 1.5px solid var(--line);
+    border-radius: 20px;
+    padding: 7px 7px 7px 10px;
+    box-shadow: var(--shadow-1);
+    transition: border-color 0.15s, box-shadow 0.15s;
+  }
+  form.add-form:focus-within {
+    border-color: var(--brand);
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--brand) 16%, transparent);
+  }
+  form.add-form input[type="text"] {
+    flex: 1; min-width: 0;
+    border: 0; outline: 0;
+    background: transparent;
+    padding: 12px 6px;
+    font: inherit;
+    font-size: 16px;
+    color: var(--ink);
+  }
+  form.add-form input.qty {
+    flex: 0 0 76px;
+    background: var(--surface-2);
+    border-radius: 12px;
+    text-align: center;
+    padding: 12px 8px;
+    font-size: 16px;
+  }
+  form.add-form input::placeholder { color: var(--ink-3); }
+  form.add-form button {
+    flex: 0 0 48px;
+    width: 48px; height: 48px;
+    border: 0;
+    border-radius: 14px;
+    background: var(--brand);
+    color: var(--on-brand);
+    display: grid; place-items: center;
+    cursor: pointer;
+    transition: transform 0.1s;
+  }
+  form.add-form button:active { transform: scale(0.94); }
+  form.add-form button svg { width: 22px; height: 22px; }
+
+  .suggestions {
+    position: absolute;
+    left: 0; right: 0;
+    top: calc(100% + 8px);
+    max-height: 52vh;
+    overflow-y: auto;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    box-shadow: var(--shadow-2);
+    z-index: 20;
+  }
+  .suggestion-label {
+    padding: 12px 16px 6px;
     font-size: 0.7rem;
     font-weight: 700;
     letter-spacing: 0.08em;
     text-transform: uppercase;
-    color: var(--ink-faint);
-    margin: 22px 0 12px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
+    color: var(--ink-3);
   }
-
-  .section-label:first-child { margin-top: 0; }
-
-  .section-label .count {
-    background: var(--brand-soft);
-    color: var(--brand-dark);
-    border-radius: 20px;
-    padding: 1px 9px;
-    font-size: 0.7rem;
+  .suggestion-row {
+    display: flex; align-items: center; gap: 10px;
+    width: 100%;
+    padding: 13px 16px;
+    background: none;
+    border: 0;
+    border-top: 1px solid var(--line);
+    text-align: left;
+    font: inherit;
+    font-size: 0.97rem;
+    color: var(--ink);
+    cursor: pointer;
+  }
+  .suggestion-row:active { background: var(--brand-soft); }
+  .suggestion-name { flex: 1; min-width: 0; font-weight: 600; }
+  .suggestion-price {
+    flex-shrink: 0;
+    font-size: 0.78rem;
     font-weight: 700;
-    letter-spacing: normal;
-    text-transform: none;
+    color: var(--gold);
+    background: var(--gold-soft);
+    padding: 3px 9px;
+    border-radius: var(--r-pill);
   }
-
-  .category-header {
-    font-family: 'Plus Jakarta Sans', sans-serif;
-    font-size: 0.68rem;
-    font-weight: 700;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    color: var(--brand-dark);
-    background: var(--brand-soft);
-    padding: 4px 10px;
-    border-radius: 20px;
-    display: inline-block;
-    margin: 14px 0 6px;
-  }
-  .category-header:first-child { margin-top: 2px; }
 
   /* =====================================================================
-     LISTA — filas tipo fila limpia con checkbox circular
+     LISTA
      ===================================================================== */
   ul.items { list-style: none; margin: 0; padding: 0; }
 
+  .category-header {
+    display: flex; align-items: center; gap: 10px;
+    margin: 16px 0 2px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+  }
+  .category-header::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+  .category-header:first-child { margin-top: 8px; }
+
   .item-row {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 10px;
-    padding: 11px 10px;
+    display: flex; flex-wrap: wrap; align-items: center;
+    gap: 4px 12px;
     margin: 0 -10px;
-    border-radius: var(--radius-sm);
-    border-bottom: 1px solid var(--border);
-    font-size: 0.94rem;
+    padding: 12px 10px;
+    border-radius: 14px;
+    /* separador inset, no toca los bordes de la fila */
+    background-image: linear-gradient(var(--line), var(--line));
+    background-size: calc(100% - 20px) 1px;
+    background-position: 10px 100%;
+    background-repeat: no-repeat;
   }
-
-  .item-row:last-child { border-bottom: none; }
-
-  .item-row.done {
-    background: var(--brand-soft);
-    border-bottom-color: transparent;
-  }
+  .item-row:last-child { background-image: none; }
+  .item-row.done { background: var(--brand-soft); margin-top: 4px; }
+  .item-row.done + .item-row.done { margin-top: 4px; }
 
   .check-btn {
-    flex-shrink: 0;
-    width: 24px; height: 24px;
-    border: 2px solid var(--border);
-    border-radius: 50%;
-    background: var(--surface);
-    cursor: pointer;
-    display: flex; align-items: center; justify-content: center;
+    position: relative;
+    flex: 0 0 28px;
+    width: 28px; height: 28px;
     padding: 0;
+    border-radius: 50%;
+    border: 2px solid var(--line-strong);
+    background: var(--surface);
     color: transparent;
-    font-size: 0.7rem;
-    transition: all 0.15s ease;
+    display: grid; place-items: center;
+    font-size: 0.85rem; font-weight: 800; line-height: 1;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s, transform 0.1s;
   }
-
+  .check-btn::after { content: ""; position: absolute; inset: -10px; }
+  .check-btn:active { transform: scale(0.9); }
   .item-row.done .check-btn {
     background: var(--brand);
     border-color: var(--brand);
-    color: white;
+    color: var(--on-brand);
   }
 
-  .item-name { flex: 1; min-width: 120px; font-weight: 500; }
-  .item-row.done .item-name { color: var(--brand-dark); text-decoration: line-through; }
-
-  .leader { display: none; }
+  .item-name {
+    flex: 1 1 120px;
+    min-width: 0;
+    font-size: 1rem;
+    font-weight: 600;
+    overflow-wrap: anywhere;
+  }
+  .item-row.done .item-name { color: var(--brand-ink); text-decoration: line-through; opacity: 0.8; }
+  .item-row .leader { display: none; }
 
   .item-qty {
     flex-shrink: 0;
-    background: var(--bg);
-    color: var(--ink-muted);
-    font-size: 0.76rem;
-    font-weight: 600;
-    padding: 3px 9px;
-    border-radius: 20px;
+    background: var(--surface-2);
+    color: var(--ink-2);
+    font-size: 0.78rem;
+    font-weight: 700;
+    padding: 3px 10px;
+    border-radius: var(--r-pill);
   }
   .item-qty:empty { display: none; }
-
-  .item-added-by {
-    flex-basis: 100%;
-    font-size: 0.68rem;
-    color: var(--ink-faint);
-    padding-left: 34px;
-    margin-top: -6px;
-  }
+  .item-row.done .item-qty { background: color-mix(in srgb, var(--brand) 14%, transparent); color: var(--brand-ink); }
 
   .del-btn {
-    flex-shrink: 0;
-    background: none;
-    border: none;
-    color: var(--ink-faint);
+    position: relative;
+    flex: 0 0 30px;
+    width: 30px; height: 30px;
+    border: 0; border-radius: 50%;
+    background: transparent;
+    color: var(--ink-3);
     font-size: 0.95rem;
+    display: grid; place-items: center;
     cursor: pointer;
-    padding: 2px 4px;
   }
-  .del-btn:hover { color: var(--danger); }
+  .del-btn::after { content: ""; position: absolute; inset: -6px; }
+  .del-btn:hover, .del-btn:active { color: var(--danger); background: color-mix(in srgb, var(--danger) 12%, transparent); }
 
-  .empty-msg {
-    color: var(--ink-faint);
-    font-size: 0.86rem;
-    padding: 4px 0 14px;
+  /* línea de "añadido por…" y, debajo, la pastilla de precio */
+  .item-added-by {
+    flex: 0 0 100%;
+    padding-left: 40px;
+    margin-top: -2px;
+    font-size: 0.75rem;
+    color: var(--ink-3);
   }
+  .item-added-by + .item-added-by {
+    flex: 0 0 auto;
+    margin: 2px 0 0 40px;
+    padding: 3px 10px;
+    border-radius: var(--r-pill);
+    background: var(--gold-soft);
+    color: var(--gold);
+    font-weight: 700;
+  }
+  .item-row.done .item-added-by { color: var(--brand-ink); opacity: 0.7; }
 
   .clear-done-btn {
     display: block;
     width: 100%;
-    margin: 16px 0 0;
-    background: var(--bg);
-    border: none;
-    color: var(--ink-muted);
-    font-family: 'Inter', sans-serif;
-    font-weight: 600;
-    font-size: 0.78rem;
-    padding: 11px;
-    border-radius: var(--radius-sm);
-    cursor: pointer;
-  }
-
-  /* =====================================================================
-     FORMULARIO DE AÑADIR
-     ===================================================================== */
-  form.add-form {
-    display: flex;
-    gap: 8px;
-    margin-top: 20px;
-  }
-
-  form.add-form input[type="text"] {
-    flex: 1;
-    min-width: 0;
-    padding: 13px 14px;
-    border: none;
-    border-radius: var(--radius-sm);
-    font-family: 'Inter', sans-serif;
-    font-size: 0.95rem;
-    background: var(--bg);
-    color: var(--ink);
-  }
-
-  form.add-form input.qty { flex: 0 0 64px; }
-
-  form.add-form input::placeholder { color: var(--ink-faint); }
-
-  form.add-form input:focus {
-    outline: 2px solid var(--brand);
-    outline-offset: -1px;
-  }
-
-  form.add-form button {
-    flex-shrink: 0;
-    background: var(--brand);
-    color: white;
-    border: none;
-    border-radius: var(--radius-sm);
-    width: 48px;
-    font-size: 1.4rem;
-    font-weight: 300;
-    cursor: pointer;
-  }
-
-  /* =====================================================================
-     BOTÓN FLOTANTE — escanear ticket
-     ===================================================================== */
-  .scan-fab {
-    position: fixed;
-    right: 20px;
-    bottom: 92px;
-    background: var(--brand);
-    color: white;
-    border: none;
-    border-radius: 30px;
-    padding: 15px 22px;
-    font-family: 'Plus Jakarta Sans', sans-serif;
-    font-weight: 700;
-    font-size: 0.85rem;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    box-shadow: var(--shadow-md);
-    cursor: pointer;
-    z-index: 20;
-  }
-
-  /* =====================================================================
-     MODALES
-     ===================================================================== */
-  .modal-overlay {
-    position: fixed; inset: 0;
-    background: rgba(20, 24, 21, 0.45);
-    display: flex; align-items: flex-end;
-    z-index: 50;
-  }
-  .modal-overlay.hidden { display: none; }
-
-  .modal {
-    background: var(--surface);
-    width: 100%;
-    max-width: 480px;
-    margin: 0 auto;
-    border-radius: 24px 24px 0 0;
-    padding: 26px 22px calc(24px + env(safe-area-inset-bottom));
-    max-height: 85vh;
-    overflow-y: auto;
-  }
-
-  .modal h2 {
-    font-size: 1.15rem;
-    margin: 0 0 6px;
-    font-weight: 700;
-  }
-
-  .modal p.hint {
-    color: var(--ink-muted);
-    font-size: 0.85rem;
-    margin: 0 0 18px;
-  }
-
-  .modal input[type="text"] {
-    width: 100%;
-    padding: 13px 14px;
-    border: none;
-    border-radius: var(--radius-sm);
-    font-family: 'Inter', sans-serif;
-    font-size: 0.95rem;
-    margin-bottom: 12px;
-    background: var(--bg);
-    color: var(--ink);
-  }
-  .modal input[type="text"]:focus { outline: 2px solid var(--brand); outline-offset: -1px; }
-
-  .modal .primary-btn {
-    width: 100%;
-    background: var(--brand);
-    color: white;
-    border: none;
-    border-radius: var(--radius-sm);
-    padding: 14px;
-    font-family: 'Plus Jakarta Sans', sans-serif;
-    font-weight: 700;
-    font-size: 0.95rem;
-    cursor: pointer;
-  }
-
-  .modal .secondary-btn {
-    width: 100%;
-    background: none;
-    border: none;
-    color: var(--ink-muted);
+    margin: 8px 0 6px;
     padding: 12px;
+    border: 0;
+    border-radius: 12px;
+    background: var(--surface-2);
+    color: var(--ink-2);
     font-size: 0.86rem;
     font-weight: 600;
     cursor: pointer;
   }
-
-  .scan-status {
-    text-align: center;
-    padding: 36px 10px;
-    color: var(--ink-muted);
-    font-size: 0.9rem;
-  }
-
-  .detected-item {
-    display: flex;
-    align-items: flex-start;
-    flex-wrap: wrap;
-    gap: 10px;
-    padding: 10px 0;
-    border-bottom: 1px solid var(--border);
-  }
-
-  .detected-item input[type="checkbox"] {
-    width: 20px; height: 20px;
-    accent-color: var(--brand);
-    margin-top: 1px;
-  }
-  .detected-item .name { flex: 1; font-size: 0.92rem; font-weight: 500; }
-  .detected-item .qty { color: var(--ink-muted); font-size: 0.8rem; }
-  .detected-item .price {
-    color: var(--ink-muted);
-    font-size: 0.8rem;
-    font-weight: 600;
-    flex-shrink: 0;
-  }
-  .detected-item .note {
-    flex-basis: 100%;
-    font-size: 0.74rem;
-    color: var(--brand-dark);
-    background: var(--brand-soft);
-    padding: 5px 10px;
-    border-radius: var(--radius-sm);
-    margin-left: 30px;
-  }
-  .detected-item .note.dup { color: var(--brand-dark); background: var(--brand-soft); }
-  .detected-item .ticket-raw {
-    flex-basis: 100%;
-    font-size: 0.7rem;
-    color: var(--ink-faint);
-    font-style: italic;
-    margin-left: 30px;
-  }
-
-  .scan-store {
-    font-family: 'Plus Jakarta Sans', sans-serif;
-    font-weight: 700;
-    font-size: 0.78rem;
-    color: var(--ink-muted);
-    margin-bottom: 8px;
-    display: block;
-  }
-
-  #scanStoreInput {
-    width: 100%;
-    padding: 12px 14px;
-    border: none;
-    border-radius: var(--radius-sm);
-    font-family: 'Inter', sans-serif;
-    font-weight: 600;
-    font-size: 0.95rem;
-    margin-bottom: 16px;
-    background: var(--bg);
-    color: var(--ink);
-  }
-  #scanStoreInput:focus { outline: 2px solid var(--brand); outline-offset: -1px; }
-
-  .toast {
-    position: fixed;
-    bottom: 156px;
-    left: 50%;
-    transform: translateX(-50%);
-    background: var(--ink);
-    color: white;
-    padding: 11px 20px;
-    border-radius: 30px;
-    font-size: 0.82rem;
-    font-weight: 500;
-    z-index: 60;
-    opacity: 0;
-    transition: opacity 0.25s ease;
-    pointer-events: none;
-    max-width: 90%;
-    text-align: center;
-    box-shadow: var(--shadow-md);
-  }
-  .toast.show { opacity: 1; }
-
-  .install-banner {
-    max-width: 480px;
-    margin: 14px auto 0;
-    padding: 0 16px;
-  }
-  .install-banner button {
-    width: 100%;
-    background: var(--surface);
-    border: 1.5px dashed var(--brand);
-    color: var(--brand-dark);
-    border-radius: var(--radius-md);
-    padding: 12px;
-    font-family: 'Plus Jakarta Sans', sans-serif;
-    font-weight: 700;
-    font-size: 0.85rem;
-    cursor: pointer;
-  }
-  .install-banner.hidden { display: none; }
-
-  .suggestions {
-    margin-top: 10px;
-    background: var(--bg);
-    border-radius: var(--radius-sm);
-    overflow: hidden;
-  }
-  .suggestions.hidden { display: none; }
-  .suggestion-label {
-    font-size: 0.68rem;
-    font-weight: 700;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    color: var(--ink-faint);
-    padding: 8px 12px 2px;
-  }
-  .suggestion-row {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    width: 100%;
-    background: none;
-    border: none;
-    text-align: left;
-    padding: 9px 12px;
-    cursor: pointer;
-    font-family: 'Inter', sans-serif;
-    font-size: 0.88rem;
-    color: var(--ink);
-  }
-  .suggestion-row:hover, .suggestion-row:active { background: var(--brand-soft); }
-  .suggestion-row .suggestion-name { flex: 1; font-weight: 500; }
-  .suggestion-row .suggestion-price { font-size: 0.72rem; color: var(--gold); font-weight: 700; flex-shrink: 0; }
-
-  /* =====================================================================
-     BARRA DE NAVEGACIÓN — fija abajo, estilo app nativa
-     ===================================================================== */
-  .tabbar {
-    position: fixed;
-    left: 0; right: 0; bottom: 0;
-    display: flex;
-    max-width: 480px;
-    margin: 0 auto;
-    padding: 8px 12px calc(10px + env(safe-area-inset-bottom));
-    gap: 4px;
-    background: var(--surface);
-    box-shadow: 0 -1px 0 var(--border), var(--shadow-md);
-    z-index: 30;
-  }
-  .tabbar button {
-    flex: 1;
-    background: none;
-    border: none;
-    color: var(--ink-faint);
-    border-radius: var(--radius-sm);
-    padding: 8px 4px 6px;
-    font-family: 'Plus Jakarta Sans', sans-serif;
-    font-weight: 600;
-    font-size: 0.68rem;
-    cursor: pointer;
-  }
-  .tabbar button.active {
-    background: var(--brand-soft);
-    color: var(--brand-dark);
-  }
-
-  #viewCatalogo.hidden, #viewPrecios.hidden, #viewLista.hidden { display: none; }
-
-  .search-input {
-    width: 100%;
-    padding: 12px 14px;
-    border: none;
-    border-radius: var(--radius-sm);
-    font-family: 'Inter', sans-serif;
-    font-size: 0.9rem;
-    background: var(--bg);
-    color: var(--ink);
-    margin-bottom: 14px;
-  }
-  .search-input::placeholder { color: var(--ink-faint); }
-  .search-input:focus { outline: 2px solid var(--brand); outline-offset: -1px; }
+  .clear-done-btn:active { transform: scale(0.99); }
 
   /* =====================================================================
      CATÁLOGO
      ===================================================================== */
-  .catalog-add-form {
-    display: flex;
-    gap: 8px;
-    margin-bottom: 18px;
-    padding-bottom: 18px;
-    border-bottom: 1px solid var(--border);
-  }
+  .catalog-add-form { display: flex; gap: 8px; margin-bottom: 12px; }
   .catalog-add-form input[type="text"] {
-    flex: 1;
-    min-width: 0;
-    padding: 12px 14px;
-    border: none;
-    border-radius: var(--radius-sm);
-    font-family: 'Inter', sans-serif;
-    font-size: 0.92rem;
-    background: var(--bg);
+    flex: 1; min-width: 0;
+    border: 0;
+    border-radius: var(--r-ctl);
+    background: var(--surface-2);
+    padding: 14px;
+    font: inherit; font-size: 16px;
     color: var(--ink);
   }
-  .catalog-add-form input::placeholder { color: var(--ink-faint); }
-  .catalog-add-form input:focus { outline: 2px solid var(--brand); outline-offset: -1px; }
+  .catalog-add-form input::placeholder { color: var(--ink-3); }
   .catalog-add-form button {
     flex-shrink: 0;
-    background: var(--ink);
-    color: white;
-    border: none;
-    border-radius: var(--radius-sm);
+    border: 0;
+    border-radius: var(--r-ctl);
     padding: 0 18px;
-    font-family: 'Plus Jakarta Sans', sans-serif;
+    background: var(--brand);
+    color: var(--on-brand);
     font-weight: 700;
-    font-size: 0.82rem;
+    font-size: 0.92rem;
     cursor: pointer;
   }
+
+  .search-input {
+    width: 100%;
+    border: 0;
+    border-radius: var(--r-ctl);
+    padding: 14px 14px 14px 44px;
+    background: var(--surface-2) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 24 24' fill='none' stroke='%238A978F' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='m20 20-3.5-3.5'/%3E%3C/svg%3E") no-repeat 14px center;
+    font: inherit; font-size: 16px;
+    color: var(--ink);
+  }
+  .search-input::placeholder { color: var(--ink-3); }
+  .search-input:focus { outline: 2px solid var(--brand); outline-offset: 0; }
+
+  .chip-row {
+    display: flex; gap: 8px;
+    overflow-x: auto;
+    margin: 12px -16px 4px;
+    padding: 2px 16px 6px;
+    scrollbar-width: none;
+  }
+  .chip-row::-webkit-scrollbar { display: none; }
+  .chip {
+    flex: 0 0 auto;
+    white-space: nowrap;
+    padding: 9px 14px;
+    border: 1px solid var(--line-strong);
+    border-radius: var(--r-pill);
+    background: var(--surface);
+    color: var(--ink-2);
+    font-size: 0.84rem;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .chip:active { transform: scale(0.97); }
+  .chip:disabled { opacity: 0.6; cursor: progress; }
+  .chip.active-tool { background: var(--brand-soft); border-color: var(--brand); color: var(--brand-ink); }
 
   .catalogo-row {
-    display: flex;
-    align-items: center;
-    gap: 10px;
+    display: flex; align-items: center; gap: 12px;
     padding: 12px 0;
-    border-bottom: 1px solid var(--border);
+    border-bottom: 1px solid var(--line);
   }
-  .catalogo-row:last-child { border-bottom: none; }
-  .catalogo-row .info { flex: 1; }
-  .catalogo-row .catalogo-name { font-size: 0.93rem; font-weight: 500; }
-  .catalogo-row .catalogo-price {
-    font-size: 0.74rem;
-    color: var(--gold);
-    font-weight: 700;
-    margin-top: 2px;
-  }
+  .catalogo-row:last-child { border-bottom: 0; }
+  .catalogo-row .info { flex: 1; min-width: 0; }
+  .catalogo-name { font-size: 1rem; font-weight: 600; }
+  .catalogo-price { margin-top: 2px; font-size: 0.78rem; font-weight: 700; color: var(--gold); }
   .catalogo-row .add-btn {
-    flex-shrink: 0;
-    width: 32px; height: 32px;
-    border-radius: 50%;
-    border: none;
+    flex: 0 0 38px;
+    width: 38px; height: 38px;
+    border: 0; border-radius: 50%;
     background: var(--brand-soft);
-    color: var(--brand-dark);
-    font-size: 1.15rem;
-    font-weight: 600;
+    color: var(--brand-ink);
+    font-size: 1.35rem; font-weight: 600; line-height: 1;
+    display: grid; place-items: center;
     cursor: pointer;
   }
+  .catalogo-row .add-btn:active { transform: scale(0.92); }
+  .catalogo-row input[type="checkbox"] { flex: 0 0 24px; width: 24px; height: 24px; accent-color: var(--brand); }
 
   .cat-select {
-    margin-top: 4px;
-    font-family: 'Inter', sans-serif;
-    font-size: 0.7rem;
-    font-weight: 600;
-    color: var(--ink-muted);
-    background: var(--bg);
-    border: none;
-    border-radius: 20px;
-    padding: 3px 8px;
+    appearance: none; -webkit-appearance: none;
+    margin-top: 6px;
     max-width: 100%;
+    border: 0;
+    border-radius: var(--r-pill);
+    padding: 4px 26px 4px 10px;
+    background: var(--surface-2) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238A978F' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") no-repeat right 9px center;
+    color: var(--ink-2);
+    font: inherit; font-size: 0.75rem; font-weight: 600;
   }
-
-  .catalogo-row input[type="checkbox"] {
-    flex-shrink: 0;
-    width: 22px; height: 22px;
-    accent-color: var(--brand);
-  }
-
-  #mergeModeBtn.active-tool {
-    background: var(--brand-soft);
-    color: var(--brand-dark);
-    font-weight: 700;
-  }
-
-  .merge-option {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 12px 0;
-    border-bottom: 1px solid var(--border);
-  }
-  .merge-option:last-child { border-bottom: none; }
-  .merge-option input[type="radio"] {
-    width: 20px; height: 20px;
-    accent-color: var(--brand);
-    flex-shrink: 0;
-  }
-  .merge-option .merge-name { font-weight: 600; font-size: 0.95rem; }
-  .merge-option .merge-meta { font-size: 0.74rem; color: var(--ink-muted); }
+  @media (pointer: coarse) { .cat-select { font-size: 16px; padding: 4px 28px 4px 12px; } }
 
   /* =====================================================================
-     PRECIOS
+     PRECIOS — el producto manda, el supermercado acompaña
      ===================================================================== */
+  #preciosList { display: flex; flex-direction: column; gap: 12px; }
+  #viewPrecios .empty-msg { padding-top: 28px; }
+
   .price-group {
-    margin-bottom: 18px;
-    padding-bottom: 18px;
-    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    padding: 14px 14px 8px;
+    box-shadow: var(--shadow-1);
   }
-  .price-group:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
-
   .price-product-name {
+    margin-bottom: 10px;
     font-family: 'Plus Jakarta Sans', sans-serif;
-    font-size: 1rem;
+    font-size: 1.05rem;
     font-weight: 700;
+    letter-spacing: -0.01em;
     color: var(--ink);
-    margin-bottom: 6px;
   }
-
   .price-winner {
-    display: flex;
-    align-items: center;
-    gap: 8px;
+    display: flex; align-items: center; gap: 8px;
+    padding: 10px 12px;
+    border-radius: 12px;
     background: var(--gold-soft);
-    border-radius: var(--radius-sm);
-    padding: 8px 10px;
-    font-size: 0.82rem;
-    font-weight: 600;
-    color: #A87A15;
+    color: var(--gold);
+    font-size: 0.88rem;
+    font-weight: 700;
   }
-  .price-winner-amount { font-weight: 700; }
-  .price-winner-date { margin-left: auto; font-weight: 500; color: #B08A3D; font-size: 0.72rem; }
+  .price-winner-amount { margin-left: auto; font-size: 1.05rem; font-weight: 800; }
+  .price-winner-date { font-size: 0.72rem; font-weight: 600; opacity: 0.8; }
 
   .price-others { margin-top: 4px; }
   .price-row {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 5px 10px;
-    font-size: 0.78rem;
+    display: flex; align-items: center; gap: 8px;
+    padding: 7px 12px;
+    font-size: 0.84rem;
+    color: var(--ink-3);
   }
-  .price-row .store { color: var(--ink-muted); font-weight: 500; }
-  .price-row .leader { display: block; flex: 1; border-bottom: 1px dotted var(--border); margin-bottom: 3px; }
-  .price-row .date { color: var(--ink-faint); font-size: 0.7rem; flex-shrink: 0; }
-  .price-row .price { font-weight: 500; color: var(--ink-faint); }
+  .price-row .store { color: var(--ink-2); font-weight: 600; }
+  .price-row .leader { display: block; flex: 1; min-width: 8px; margin-bottom: 3px; border-bottom: 1px dotted var(--line-strong); }
+  .price-row .price { color: var(--ink-2); font-weight: 600; }
+  .price-row .date { font-size: 0.72rem; }
+
+  /* =====================================================================
+     BOTONES GENERALES
+     ===================================================================== */
+  .primary-btn {
+    display: block;
+    width: 100%;
+    border: 0;
+    border-radius: var(--r-ctl);
+    padding: 15px;
+    background: var(--brand);
+    color: var(--on-brand);
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: 1rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: transform 0.1s, opacity 0.15s;
+  }
+  .primary-btn:active { transform: scale(0.985); }
+  .primary-btn:disabled { opacity: 0.6; cursor: progress; }
+  .secondary-btn {
+    display: block;
+    width: 100%;
+    padding: 14px;
+    border: 0;
+    background: none;
+    color: var(--ink-2);
+    font-size: 0.92rem;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  /* botón flotante "Fusionar N productos" dentro del catálogo */
+  #mergeBar {
+    position: sticky;
+    bottom: calc(var(--nav-h) + 14px + env(safe-area-inset-bottom));
+    margin: 12px 0 6px;
+    box-shadow: var(--shadow-2);
+    z-index: 4;
+  }
+
+  /* =====================================================================
+     NAVEGACIÓN INFERIOR + BOTÓN ESCANEAR
+     ===================================================================== */
+  .tabbar {
+    position: fixed;
+    z-index: 30;
+    left: 50%;
+    transform: translateX(-50%);
+    bottom: calc(12px + env(safe-area-inset-bottom));
+    width: min(calc(var(--col) - 24px), calc(100% - 24px));
+    display: flex; gap: 4px;
+    padding: 6px;
+    background: var(--surface);
+    background: color-mix(in srgb, var(--surface) 88%, transparent);
+    -webkit-backdrop-filter: saturate(1.5) blur(16px);
+    backdrop-filter: saturate(1.5) blur(16px);
+    border: 1px solid var(--line);
+    border-radius: 24px;
+    box-shadow: var(--shadow-2);
+  }
+  .tabbar button {
+    flex: 1;
+    display: flex; flex-direction: column; align-items: center; gap: 3px;
+    padding: 9px 4px 8px;
+    border: 0; border-radius: 18px;
+    background: transparent;
+    color: var(--ink-3);
+    font-size: 0.7rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+  }
+  .tabbar button svg { width: 22px; height: 22px; }
+  .tabbar button.active { background: var(--brand-soft); color: var(--brand-ink); }
+
+  .scan-fab {
+    position: fixed;
+    z-index: 25;
+    right: max(16px, calc((100vw - var(--col)) / 2 + 16px));
+    bottom: calc(var(--nav-h) + 12px + env(safe-area-inset-bottom));
+    display: flex; align-items: center; gap: 8px;
+    padding: 14px 20px 14px 16px;
+    border: 0;
+    border-radius: var(--r-pill);
+    background: var(--ink);
+    color: var(--bg);
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: 0.9rem;
+    font-weight: 700;
+    box-shadow: var(--shadow-2);
+    cursor: pointer;
+    transition: transform 0.1s;
+  }
+  .scan-fab:active { transform: scale(0.96); }
+  .scan-fab svg { width: 20px; height: 20px; }
+
+  /* =====================================================================
+     HOJAS INFERIORES (modales)
+     ===================================================================== */
+  .modal-overlay {
+    position: fixed; inset: 0;
+    z-index: 50;
+    display: flex; align-items: flex-end; justify-content: center;
+    background: rgba(8, 14, 11, 0.5);
+    -webkit-backdrop-filter: blur(3px);
+    backdrop-filter: blur(3px);
+    animation: fade 0.2s ease-out;
+  }
+  .modal {
+    width: 100%;
+    max-width: var(--col);
+    max-height: 88vh;
+    overflow-y: auto;
+    padding: 12px 20px calc(20px + env(safe-area-inset-bottom));
+    background: var(--surface);
+    border-radius: 28px 28px 0 0;
+    box-shadow: var(--shadow-2);
+    animation: sheet 0.28s cubic-bezier(.2, .8, .2, 1);
+  }
+  .modal::before {
+    content: "";
+    display: block;
+    width: 42px; height: 4px;
+    margin: 0 auto 16px;
+    border-radius: 4px;
+    background: var(--line-strong);
+  }
+  @keyframes sheet { from { transform: translateY(40px); opacity: 0; } to { transform: none; opacity: 1; } }
+  @keyframes fade  { from { opacity: 0; } to { opacity: 1; } }
+
+  .modal h2 { margin: 0 0 6px; font-size: 1.3rem; font-weight: 800; }
+  .modal p.hint { margin: 0 0 18px; font-size: 0.9rem; color: var(--ink-2); }
+  .modal input[type="text"] {
+    display: block;
+    width: 100%;
+    margin-bottom: 12px;
+    padding: 14px;
+    border: 0;
+    border-radius: var(--r-ctl);
+    background: var(--surface-2);
+    font: inherit; font-size: 16px;
+    color: var(--ink);
+  }
+  .modal input[type="text"]:focus { outline: 2px solid var(--brand); outline-offset: 0; }
+
+  /* zona de foto del ticket */
+  #scanFileInput {
+    width: 100%;
+    padding: 26px 14px;
+    border: 2px dashed var(--line-strong);
+    border-radius: 18px;
+    background: var(--surface-2);
+    color: var(--ink-2);
+    font: inherit; font-size: 0.88rem;
+    text-align: center;
+    cursor: pointer;
+  }
+  #scanFileInput::file-selector-button {
+    display: block;
+    margin: 0 auto 12px;
+    padding: 13px 22px;
+    border: 0;
+    border-radius: var(--r-ctl);
+    background: var(--brand);
+    color: var(--on-brand);
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: 0.98rem;
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  .scan-status {
+    padding: 30px 14px;
+    text-align: center;
+    color: var(--ink-2);
+    font-size: 0.95rem;
+  }
+  .scan-store { display: block; margin: 0 0 6px; font-size: 0.78rem; font-weight: 700; color: var(--ink-2); }
+  #scanStoreInput { font-weight: 600; }
+
+  .detected-item {
+    display: flex; flex-wrap: wrap; align-items: center;
+    gap: 4px 12px;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--line);
+    cursor: pointer;
+  }
+  .detected-item input[type="checkbox"] { flex: 0 0 22px; width: 22px; height: 22px; margin: 0; accent-color: var(--brand); }
+  .detected-item .name { flex: 1 1 120px; min-width: 0; font-size: 0.98rem; font-weight: 600; }
+  .detected-item .qty { font-size: 0.8rem; font-weight: 600; color: var(--ink-2); }
+  .detected-item .price { font-size: 0.92rem; font-weight: 800; }
+  .detected-item .ticket-raw {
+    flex: 0 0 100%;
+    padding-left: 34px;
+    font-size: 0.72rem;
+    font-style: italic;
+    color: var(--ink-3);
+  }
+  .detected-item .note {
+    flex: 0 0 calc(100% - 34px);
+    margin-left: 34px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: var(--gold);
+  }
+  .detected-item .note.dup { color: var(--brand-ink); }
+
+  #scanBody .primary-btn {
+    position: sticky;
+    bottom: 0;
+    box-shadow: 0 0 0 12px var(--surface);
+  }
+
+  .merge-option {
+    display: flex; align-items: center; gap: 12px;
+    margin-bottom: 8px;
+    padding: 13px 14px;
+    border: 1.5px solid var(--line);
+    border-radius: var(--r-ctl);
+    cursor: pointer;
+  }
+  .merge-option:has(input:checked) { border-color: var(--brand); background: var(--brand-soft); }
+  .merge-option input[type="radio"] { flex: 0 0 20px; width: 20px; height: 20px; accent-color: var(--brand); }
+  .merge-name { font-weight: 700; }
+  .merge-meta { margin-top: 1px; font-size: 0.76rem; color: var(--ink-2); }
+
+  /* =====================================================================
+     AVISO (toast)
+     ===================================================================== */
+  .toast {
+    position: fixed;
+    z-index: 70;
+    left: 50%;
+    bottom: calc(var(--nav-h) + 84px + env(safe-area-inset-bottom));
+    transform: translate(-50%, 8px);
+    max-width: min(92%, 420px);
+    padding: 12px 20px;
+    border-radius: var(--r-pill);
+    background: var(--ink);
+    color: var(--bg);
+    font-size: 0.88rem;
+    font-weight: 600;
+    text-align: center;
+    box-shadow: var(--shadow-2);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s, transform 0.25s;
+  }
+  .toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition: none !important; }
+  }
 </style>
 </head>
 <body>
 
-<header>
-  <h1>🧺 Lista de la Compra</h1>
-  <div class="subtitle">Compartida en familia · en tiempo real</div>
-  <div class="torn-edge"></div>
+<header class="app-header">
+  <div class="brand-mark" aria-hidden="true">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/></svg>
+  </div>
+  <div>
+    <h1>La Compra</h1>
+    <p><span class="live-dot"></span>Compartida en familia · en tiempo real</p>
+  </div>
 </header>
 
 <div id="installBanner" class="install-banner hidden">
@@ -738,51 +900,77 @@
 </div>
 
 <main>
+  <!-- ============================ LISTA ============================ -->
   <div id="viewLista">
-    <div class="ticket">
+    <section class="summary" aria-live="polite">
+      <div class="summary-top">
+        <div class="summary-main">
+          <span class="summary-num" id="sumNum">0</span>
+          <span class="summary-label" id="sumLabel">Tu lista está vacía</span>
+        </div>
+        <span class="summary-done" id="sumDone">0 en el carrito</span>
+      </div>
+      <div class="bar"><div class="bar-fill" id="barFill"></div></div>
+    </section>
+
+    <div class="add-card">
+      <form class="add-form" id="addForm" autocomplete="off">
+        <input type="text" id="itemNameInput" placeholder="Añadir artículo" autocomplete="off" required />
+        <input type="text" id="itemQtyInput" class="qty" placeholder="Cant." autocomplete="off" />
+        <button type="submit" aria-label="Añadir">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+        </button>
+      </form>
+      <div class="suggestions hidden" id="catalogSuggestions"></div>
+    </div>
+
+    <section class="card">
       <div class="section-label">Pendientes <span class="count" id="pendingCount">0</span></div>
       <ul class="items" id="pendingList"></ul>
       <div id="pendingEmpty" class="empty-msg">No hay nada pendiente. ¡Buen trabajo!</div>
+    </section>
 
+    <section class="card">
       <div class="section-label">Comprados <span class="count" id="doneCount">0</span></div>
       <ul class="items" id="doneList"></ul>
       <div id="doneEmpty" class="empty-msg">Nada marcado todavía.</div>
       <button id="clearDoneBtn" class="clear-done-btn">Vaciar comprados</button>
-
-      <form class="add-form" id="addForm" autocomplete="off">
-        <input type="text" id="itemNameInput" placeholder="Añadir artículo..." autocomplete="off" required />
-        <input type="text" id="itemQtyInput" class="qty" placeholder="cant." autocomplete="off" />
-        <button type="submit" aria-label="Añadir">+</button>
-      </form>
-      <div class="suggestions hidden" id="catalogSuggestions"></div>
-    </div>
+    </section>
   </div>
 
+  <!-- ============================ CATÁLOGO ============================ -->
   <div id="viewCatalogo" class="hidden">
-    <div class="ticket">
+    <section class="card">
       <form class="catalog-add-form" id="catalogoAddForm">
-        <input type="text" id="catalogoAddInput" placeholder="Añadir producto que sueles comprar..." autocomplete="off" required />
+        <input type="text" id="catalogoAddInput" placeholder="Añadir producto habitual" autocomplete="off" required />
         <button type="submit">Guardar</button>
       </form>
-      <input type="text" id="catalogoSearch" class="search-input" placeholder="Buscar en el catálogo..." />
-      <button id="mergeModeBtn" class="clear-done-btn">🔗 Fusionar duplicados</button>
-      <button id="categorizeBtn" class="clear-done-btn">🤖 Categorizar con IA</button>
+      <input type="text" id="catalogoSearch" class="search-input" placeholder="Buscar en el catálogo" />
+      <div class="chip-row">
+        <button id="mergeModeBtn" class="chip">🔗 Fusionar duplicados</button>
+        <button id="categorizeBtn" class="chip">🤖 Categorizar con IA</button>
+        <button id="syncCatalogBtn" class="chip">🔄 Añadir la lista actual</button>
+      </div>
+    </section>
+
+    <section class="card">
       <div id="catalogoList"></div>
       <div id="catalogoEmpty" class="empty-msg">Aún no hay productos guardados. Añade uno arriba, o se irán sumando según uses la lista o escanees tickets.</div>
-      <button id="syncCatalogBtn" class="clear-done-btn">🔄 Añadir la lista actual al catálogo</button>
-    </div>
+    </section>
   </div>
 
+  <!-- ============================ PRECIOS ============================ -->
   <div id="viewPrecios" class="hidden">
-    <div class="ticket">
-      <input type="text" id="preciosSearch" class="search-input" placeholder="Buscar producto..." />
-      <div id="preciosList"></div>
-      <div id="preciosEmpty" class="empty-msg">Todavía no hay precios guardados. Escanea un ticket para empezar a comparar.</div>
-    </div>
+    <input type="text" id="preciosSearch" class="search-input" placeholder="Buscar producto" />
+    <div id="preciosList"></div>
+    <div id="preciosEmpty" class="empty-msg">Todavía no hay precios guardados. Escanea un ticket para empezar a comparar.</div>
   </div>
 </main>
 
-<button class="scan-fab" id="scanFab">📷 Escanear ticket</button>
+<button class="scan-fab" id="scanFab">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M13.997 4a2 2 0 0 1 1.76 1.05l.486.9A2 2 0 0 0 18.003 7H20a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h1.997a2 2 0 0 0 1.759-1.048l.489-.904A2 2 0 0 1 10.004 4z"/><circle cx="12" cy="13" r="3"/></svg>
+  Escanear ticket
+</button>
 
 <!-- Modal: nombre de usuario (primera vez) -->
 <div class="modal-overlay hidden" id="nameModalOverlay">
@@ -820,10 +1008,19 @@
 
 <div class="toast" id="toast"></div>
 
-<nav class="tabbar">
-  <button id="tabLista" class="active">🧺<br>Lista</button>
-  <button id="tabCatalogo">📖<br>Catálogo</button>
-  <button id="tabPrecios">💰<br>Precios</button>
+<nav class="tabbar" aria-label="Secciones">
+  <button id="tabLista" class="active">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/></svg>
+    Lista
+  </button>
+  <button id="tabCatalogo">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/></svg>
+    Catálogo
+  </button>
+  <button id="tabPrecios">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z"/><circle cx="7.5" cy="7.5" r=".5" fill="currentColor"/></svg>
+    Precios
+  </button>
 </nav>
 
 <script type="module">
@@ -1050,6 +1247,14 @@
     console.error(err);
     showToast(`No se pudo conectar: ${err.code || err.message}`, 6000);
   });
+
+  // Repinta la lista con lo que ya hay en caché. Se usa cuando cambian los
+  // precios (que llegan por otro canal distinto al de los artículos), para
+  // que la nota "más barato en…" aparezca siempre, llegue antes o después.
+  function rerenderItemList() {
+    renderGroupedItems(pendingList, currentItemsCache.filter((it) => !it.checked));
+    renderGroupedItems(doneList, currentItemsCache.filter((it) => it.checked));
+  }
 
   // Agrupa una lista de artículos por categoría (en el orden fijo de
   // CATEGORIAS) y los pinta dentro del contenedor indicado, con una
@@ -1916,6 +2121,7 @@ Clasifica CADA producto de la lista en una de estas categorías exactas: ${CATEG
     snapshot.forEach((d) => preciosCache.push({ id: d.id, ...d.data() }));
     renderPreciosView();
     renderCatalogoView();
+    rerenderItemList();
   }, (err) => console.error(err));
 
   function renderPreciosView() {
@@ -2028,6 +2234,40 @@ Clasifica CADA producto de la lista en una de estas categorías exactas: ${CATEG
       navigator.serviceWorker.register("sw.js").catch(console.error);
     });
   }
+</script>
+
+<!-- Resumen de la lista: solo lee los contadores que ya rellena el script principal.
+     Va aparte y protegido: si fallara, la app sigue funcionando igual. -->
+<script>
+(function () {
+  try {
+    var pEl = document.getElementById("pendingCount");
+    var dEl = document.getElementById("doneCount");
+    var num = document.getElementById("sumNum");
+    var label = document.getElementById("sumLabel");
+    var done = document.getElementById("sumDone");
+    var fill = document.getElementById("barFill");
+    if (!pEl || !dEl || !num || !label || !done || !fill) return;
+
+    function update() {
+      var p = parseInt(pEl.textContent, 10) || 0;
+      var d = parseInt(dEl.textContent, 10) || 0;
+      var total = p + d;
+      num.textContent = p;
+      done.textContent = d + (d === 1 ? " en el carrito" : " en el carrito");
+      fill.style.width = total === 0 ? "0%" : Math.round((d / total) * 100) + "%";
+      if (total === 0) label.textContent = "Tu lista está vacía";
+      else if (p === 0) label.textContent = "¡Todo comprado!";
+      else label.textContent = p === 1 ? "artículo por comprar" : "artículos por comprar";
+    }
+
+    var obs = new MutationObserver(update);
+    [pEl, dEl].forEach(function (el) {
+      obs.observe(el, { childList: true, characterData: true, subtree: true });
+    });
+    update();
+  } catch (e) { console.warn("Resumen no disponible:", e); }
+})();
 </script>
 
 </body>

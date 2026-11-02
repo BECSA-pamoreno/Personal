@@ -1,13 +1,13 @@
 {
-  "name": "Lista de la Compra Familiar",
+  "name": "La Compra",
   "short_name": "La Compra",
   "description": "Lista de la compra compartida en tiempo real, con escaneo de tickets por IA",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#F7F3E8",
-  "theme_color": "#35533E",
+  "background_color": "#F4F6F2",
+  "theme_color": "#F4F6F2",
   "icons": [
     {
       "src": "icons/icon-192.png",
