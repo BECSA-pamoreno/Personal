@@ -883,6 +883,17 @@
     color: var(--gold);
   }
   .detected-item .note.dup { color: var(--brand-ink); }
+  .detected-item .measure-line {
+    flex: 0 0 calc(100% - 34px); margin-left: 34px;
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  }
+  .detected-item .measure-input {
+    width: 150px; flex: 0 0 150px; max-width: 100%; min-height: 0; height: auto; margin: 0; padding: 6px 10px; border-radius: 10px;
+    border: 1px solid var(--line-strong); background: var(--surface-2); color: var(--ink);
+    font: inherit; font-size: 0.8rem;
+  }
+  @media (pointer: coarse) { .measure-input { font-size: 16px; } }
+  .detected-item .unit-price { font-size: 0.78rem; font-weight: 800; color: var(--brand-ink); }
 
   #scanBody .primary-btn {
     position: sticky;
@@ -1171,8 +1182,73 @@
       const cTime = current && current.fecha && current.fecha.toDate ? current.fecha.toDate().getTime() : -1;
       if (!current || pTime >= cTime) latestByStore[store] = p;
     });
-    return Object.values(latestByStore).sort((a, b) => a.precio - b.precio);
+    const list = Object.values(latestByStore).map((p) => ({ ...p }));
+    const byPrice = (a, b) => a.precio - b.precio;
+
+    // Comparación "justa": si al menos dos supermercados tienen el precio
+    // con su medida (24 ud, 500 g, 1 l…) en la misma magnitud, se ordenan
+    // por precio por unidad / kilo / litro en vez de por precio del envase.
+    const withUnit = list.filter((p) => hasUnitPrice(p));
+    const counts = {};
+    withUnit.forEach((p) => { counts[p.unidadBase] = (counts[p.unidadBase] || 0) + 1; });
+    const dom = Object.keys(counts).sort((a, b) => counts[b] - counts[a])[0];
+    const comparable = withUnit.filter((p) => p.unidadBase === dom);
+    if (comparable.length >= 2) {
+      comparable.forEach((p) => { p._byUnit = true; });
+      comparable.sort((a, b) => a.precioUnitario - b.precioUnitario);
+      const rest = list.filter((p) => !p._byUnit).sort(byPrice);
+      return [...comparable, ...rest];
+    }
+    return list.sort(byPrice);
   }
+
+  // ---- Medidas (cantidad del envase) ----
+  function hasUnitPrice(p) {
+    return p && typeof p.precioUnitario === "number" && p.precioUnitario > 0 && typeof p.cantidadBase === "number" && ["ud", "kg", "l"].includes(p.unidadBase);
+  }
+  // Convierte lo que dice Gemini (o lo que escribe la persona) a una unidad base:
+  // ud (unidades), kg o l.
+  function toBaseMeasure(valor, unidad) {
+    const v = Number(valor);
+    if (!isFinite(v) || v <= 0) return null;
+    const u = String(unidad || "ud").toLowerCase();
+    if (u === "ud") return { cantidadBase: v, unidadBase: "ud" };
+    if (u === "kg") return { cantidadBase: v, unidadBase: "kg" };
+    if (u === "g") return { cantidadBase: v / 1000, unidadBase: "kg" };
+    if (u === "l") return { cantidadBase: v, unidadBase: "l" };
+    if (u === "ml") return { cantidadBase: v / 1000, unidadBase: "l" };
+    if (u === "cl") return { cantidadBase: v / 100, unidadBase: "l" };
+    return null;
+  }
+  // Texto libre tipo "24", "24 ud", "500 g", "1,5 l", "6x1l" → medida base.
+  function parseMedida(txt) {
+    const t = String(txt || "").toLowerCase().replace(",", ".").replace(/\s+/g, " ").trim();
+    if (!t) return null;
+    const unitMap = { "": "ud", ud: "ud", uds: "ud", u: "ud", un: "ud", unidad: "ud", unidades: "ud", huevos: "ud",
+      g: "g", gr: "g", gramos: "g", kg: "kg", kilo: "kg", kilos: "kg",
+      ml: "ml", cl: "cl", l: "l", lt: "l", litro: "l", litros: "l" };
+    let m = t.match(/^(\d+(?:\.\d+)?)\s*[x×]\s*(\d+(?:\.\d+)?)\s*([a-z]*)$/);
+    if (m) { const u = unitMap[m[3]]; return u ? toBaseMeasure(Number(m[1]) * Number(m[2]), u) : null; }
+    m = t.match(/^(\d+(?:\.\d+)?)\s*([a-z]*)$/);
+    if (m) { const u = unitMap[m[2]]; return u ? toBaseMeasure(Number(m[1]), u) : null; }
+    return null;
+  }
+  const fmtNum = (n) => String(Math.round(n * 1000) / 1000).replace(".", ",");
+  function medidaText(p) {
+    if (!p || typeof p.cantidadBase !== "number") return "";
+    const c = p.cantidadBase;
+    if (p.unidadBase === "ud") return `${fmtNum(c)} ud`;
+    if (p.unidadBase === "kg") return c < 1 ? `${fmtNum(c * 1000)} g` : `${fmtNum(c)} kg`;
+    if (p.unidadBase === "l") return c < 1 ? `${fmtNum(c * 1000)} ml` : `${fmtNum(c)} l`;
+    return "";
+  }
+  function unitLabel(u) { return u === "l" ? "L" : u; }
+  function unitPriceText(p) {
+    if (!hasUnitPrice(p)) return "";
+    const v = p.precioUnitario;
+    return `${(v < 1 ? v.toFixed(3) : v.toFixed(2)).replace(".", ",")} €/${unitLabel(p.unidadBase)}`;
+  }
+  function unitSuffix(p) { return p && p._byUnit ? ` (${unitPriceText(p)})` : ""; }
 
   function bestPriceFor(clave) {
     const list = getLatestPricesByStore(clave);
@@ -1393,7 +1469,7 @@
       if (best) {
         const priceNote = document.createElement("span");
         priceNote.className = "item-added-by";
-        priceNote.textContent = `💰 más barato en ${best.supermercado || "un supermercado"}: ${best.precio.toFixed(2)} €`;
+        priceNote.textContent = `💰 más barato en ${best.supermercado || "un supermercado"}: ${best.precio.toFixed(2)} €${unitSuffix(best)}`;
         li.appendChild(priceNote);
       }
     }
@@ -1570,9 +1646,11 @@
               nombre_ticket: Schema.string(),
               cantidad: Schema.string(),
               precio: Schema.number(),
+              medida_valor: Schema.number(),
+              medida_unidad: Schema.enumString({ enum: ["ud", "g", "kg", "ml", "cl", "l"] }),
               categoria: Schema.enumString({ enum: CATEGORIAS })
             },
-            optionalProperties: ["precio", "nombre_ticket"]
+            optionalProperties: ["precio", "nombre_ticket", "medida_valor", "medida_unidad"]
           })
         })
       }
@@ -1679,7 +1757,8 @@ Clasifica CADA producto de la lista en una de estas categorías exactas: ${CATEG
 4. Guarda también el texto literal tal como aparece impreso en el ticket, en "nombre_ticket".
 5. Incluye la cantidad si se ve clara (si no, deja el campo vacío) y el precio individual en euros como número decimal sin símbolo de moneda (por ejemplo 1.25).
 6. Clasifica cada artículo en "categoria" eligiendo la que mejor encaje de esta lista exacta: ${CATEGORIAS.join(", ")}. Usa "Otros" solo si de verdad no encaja en ninguna otra.
-7. Ignora totales, IVA, descuentos, puntos de fidelidad y datos fiscales de la tienda.`;
+7. Medida del envase (para comparar precios por unidad, kilo o litro): en "medida_valor" y "medida_unidad" indica la cantidad TOTAL que se compra por el "precio" de esa línea (un solo envase). Unidades posibles: ud, g, kg, ml, cl, l. Ejemplos: "12 huevos" o "docena de huevos" → 12 ud; "pack 6 botellas de 1,5 L" → 9 l; "4 yogures de 125 g" → 500 g; "arroz 1 kg" → 1 kg; "lata 330 ml" → 330 ml; productos pesados en tienda (ej. "0,532 kg x 2,99 €/kg  1,59") → 0.532 kg con precio 1.59. Deduce la medida del propio ticket o del nombre del producto. Si no puedes saberla con seguridad, OMITE ambos campos; nunca la inventes.
+8. Ignora totales, IVA, descuentos, puntos de fidelidad y datos fiscales de la tienda.`;
 
       const result = await model.generateContent([
         {
@@ -1708,7 +1787,8 @@ Clasifica CADA producto de la lista en una de estas categorías exactas: ${CATEG
             ? catalogEntry.categoria
             : (a.categoria || "Otros");
 
-          return { ...a, nombre: resolved.nombre, clave: resolved.clave, categoria };
+          const medida = toBaseMeasure(a.medida_valor, a.medida_unidad);
+          return { ...a, nombre: resolved.nombre, clave: resolved.clave, categoria, ...(medida || {}) };
         });
       const supermercado = parsed.supermercado || "Desconocido";
 
@@ -1759,13 +1839,33 @@ Clasifica CADA producto de la lista en una de estas categorías exactas: ${CATEG
         ${ticketTxt}
       `;
 
+      // Medida del envase (la rellena Gemini; se puede corregir a mano).
+      // Con ella se calcula el precio por unidad/kilo/litro.
+      if (typeof a.precio === "number") {
+        const mLine = document.createElement("div");
+        mLine.className = "measure-line";
+        mLine.innerHTML = `<input type="text" class="measure-input" placeholder="ej. 24 ud" value="${escapeHtml(medidaText(a))}" aria-label="Medida del envase" /><span class="unit-price"></span>`;
+        const mInput = mLine.querySelector("input");
+        const mOut = mLine.querySelector(".unit-price");
+        const refreshMeasure = () => {
+          const m = parseMedida(mInput.value);
+          delete a.cantidadBase; delete a.unidadBase; delete a.precioUnitario;
+          if (m) { a.cantidadBase = m.cantidadBase; a.unidadBase = m.unidadBase; a.precioUnitario = Math.round((a.precio / m.cantidadBase) * 10000) / 10000; }
+          mOut.textContent = hasUnitPrice(a) ? "= " + unitPriceText(a) : (mInput.value.trim() ? "no entiendo esa medida" : "");
+        };
+        mInput.addEventListener("input", refreshMeasure);
+        mInput.addEventListener("click", (ev) => ev.stopPropagation());
+        refreshMeasure();
+        row.appendChild(mLine);
+      }
+
       let noteText = "";
       if (isDup) {
         noteText = "ya estaba pendiente — se marcará como comprado";
       } else if (typeof a.precio === "number") {
-        const cheaper = findCheaperElsewhere(a.clave, a.precio, detectedStore);
+        const cheaper = findCheaperElsewhere(a.clave, a.precio, detectedStore, a);
         if (cheaper) {
-          noteText = `visto más barato en ${cheaper.supermercado}: ${cheaper.precio.toFixed(2)} €`;
+          noteText = `visto más barato en ${cheaper.supermercado}: ${cheaper.precio.toFixed(2)} €${unitSuffix(cheaper)}`;
         }
       }
       if (noteText) {
@@ -1813,6 +1913,7 @@ Clasifica CADA producto de la lista en una de estas categorías exactas: ${CATEG
               nombre: a.nombre || "",
               supermercado,
               precio: a.precio,
+              ...(hasUnitPrice(a) ? { cantidadBase: a.cantidadBase, unidadBase: a.unidadBase, precioUnitario: a.precioUnitario } : {}),
               fecha: serverTimestamp()
             });
           }
@@ -1862,10 +1963,17 @@ Clasifica CADA producto de la lista en una de estas categorías exactas: ${CATEG
 
   // Busca si el mismo producto se ha visto más barato en OTRO supermercado
   // distinto al del ticket actual (sobre la caché de precios en memoria).
-  function findCheaperElsewhere(clave, currentPrice, currentStore) {
-    const candidates = getLatestPricesByStore(clave).filter(
-      (p) => p.supermercado !== currentStore && p.precio < currentPrice
-    );
+  function findCheaperElsewhere(clave, currentPrice, currentStore, current) {
+    const others = getLatestPricesByStore(clave).filter((p) => p.supermercado !== currentStore);
+    // Si conocemos la medida, comparamos por precio por unidad/kilo/litro.
+    if (current && hasUnitPrice(current)) {
+      const comparable = others.filter((p) => hasUnitPrice(p) && p.unidadBase === current.unidadBase);
+      if (comparable.length) {
+        const cheaperU = comparable.filter((p) => p.precioUnitario < current.precioUnitario).sort((a, b) => a.precioUnitario - b.precioUnitario);
+        return cheaperU.length ? { ...cheaperU[0], _byUnit: true } : null;
+      }
+    }
+    const candidates = others.filter((p) => p.precio < currentPrice).sort((a, b) => a.precio - b.precio);
     return candidates.length ? candidates[0] : null;
   }
 
@@ -1962,7 +2070,7 @@ Clasifica CADA producto de la lista en una de estas categorías exactas: ${CATEG
         row.innerHTML = `
           <div class="info">
             <div class="catalogo-name">${escapeHtml(p.nombre || "")}</div>
-            ${best ? `<div class="catalogo-price">💰 ${best.precio.toFixed(2)} € en ${escapeHtml(best.supermercado || "")}</div>` : ""}
+            ${best ? `<div class="catalogo-price">💰 ${best.precio.toFixed(2)} € en ${escapeHtml(best.supermercado || "")}${unitSuffix(best)}</div>` : ""}
           </div>
         `;
 
@@ -2228,9 +2336,14 @@ Clasifica CADA producto de la lista en una de estas categorías exactas: ${CATEG
       const entries = getLatestPricesByStore(clave);
       const best = entries[0];
       const worst = entries[entries.length - 1];
+      const byUnit = !!best._byUnit;
+      const cmp = (e) => (byUnit ? e.precioUnitario : e.precio);
+      const cmpList = entries.filter((e) => !byUnit || e._byUnit);
+      const cmpWorst = cmpList[cmpList.length - 1];
       return {
-        clave, nombre: productos[clave].nombre, entries,
-        saving: entries.length > 1 ? worst.precio - best.precio : 0,
+        clave, nombre: productos[clave].nombre, entries, byUnit,
+        saving: cmpList.length > 1 ? cmp(cmpWorst) - cmp(best) : 0,
+        pctSaving: cmpList.length > 1 && cmp(cmpWorst) > 0 ? (cmp(cmpWorst) - cmp(best)) / cmp(cmpWorst) : 0,
         latest: Math.max(0, ...entries.map(priceTime))
       };
     }).filter((x) => x.entries.length);
@@ -2275,7 +2388,7 @@ Clasifica CADA producto de la lista en una de estas categorías exactas: ${CATEG
     let rows = all.filter((x) =>
       (!filter || stripAccents(x.nombre).includes(filter)) &&
       (!priceStoreFilter || x.entries.some((e) => (e.supermercado || "Desconocido") === priceStoreFilter)));
-    if (priceSort === "ahorro") rows.sort((a, b) => b.saving - a.saving || a.nombre.localeCompare(b.nombre, "es"));
+    if (priceSort === "ahorro") rows.sort((a, b) => b.pctSaving - a.pctSaving || a.nombre.localeCompare(b.nombre, "es"));
     else if (priceSort === "reciente") rows.sort((a, b) => b.latest - a.latest);
     else rows.sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
 
@@ -2290,8 +2403,11 @@ Clasifica CADA producto de la lista en una de estas categorías exactas: ${CATEG
       const { entries } = x;
       const best = entries[0];
       const bestStore = best.supermercado || "Desconocido";
-      const worst = entries[entries.length - 1];
-      const max = worst.precio || 1;
+      const byUnit = x.byUnit;
+      const cmpEntries = byUnit ? entries.filter((e) => e._byUnit) : entries;
+      const val = (e) => (byUnit ? e.precioUnitario : e.precio);
+      const fmtVal = (n) => (byUnit ? (n < 1 ? n.toFixed(3) : n.toFixed(2)).replace(".", ",") + " €/" + unitLabel(best.unidadBase) : fmtEur(n));
+      const max = val(cmpEntries[cmpEntries.length - 1]) || 1;
       const cat = (catalogoCache.find((c) => c.clave === x.clave) || {}).categoria || "";
       const inList = pendingKeys.has(x.clave);
 
@@ -2299,10 +2415,12 @@ Clasifica CADA producto de la lista en una de estas categorías exactas: ${CATEG
       card.className = "pcard";
       card.style.animationDelay = Math.min(idx, 8) * 25 + "ms";
 
-      const pct = entries.length > 1 && worst.precio > 0 ? Math.round((x.saving / worst.precio) * 100) : 0;
-      const sub = entries.length > 1
-        ? `Mejor precio · ${relDate(best)} · ${entries.length} supermercados`
-        : `Solo visto en ${escapeHtml(bestStore)} · ${relDate(best)}`;
+      const pct = Math.round(x.pctSaving * 100);
+      const sub = byUnit
+        ? `${fmtEur(best.precio)} · ${medidaText(best)} · ${relDate(best)} · comparado por ${unitLabel(best.unidadBase) === "ud" ? "unidad" : unitLabel(best.unidadBase) === "kg" ? "kilo" : "litro"}`
+        : entries.length > 1
+          ? `Mejor precio · ${relDate(best)} · ${entries.length} supermercados`
+          : `Solo visto en ${escapeHtml(bestStore)} · ${relDate(best)}`;
 
       card.innerHTML = `
         <div class="pc-head">
@@ -2317,18 +2435,23 @@ Clasifica CADA producto de la lista en una de estas categorías exactas: ${CATEG
           </button>
         </div>
         <div class="pc-best">
-          <span class="pc-amount">${fmtEur(best.precio)}</span>
+          <span class="pc-amount">${byUnit ? fmtVal(best.precioUnitario) : fmtEur(best.precio)}</span>
           <span class="store-pill"><span class="store-dot" style="--sc:${storeColor(bestStore)}"></span>${escapeHtml(bestStore)}</span>
-          ${x.saving > 0.004 ? `<span class="save-badge">Ahorras ${fmtEur(x.saving)}${pct ? ` · ${pct}%` : ""}</span>` : ""}
+          ${x.saving > 0.0004 ? `<span class="save-badge">${byUnit ? `${pct}% más barato` : `Ahorras ${fmtEur(x.saving)}${pct ? ` · ${pct}%` : ""}`}</span>` : ""}
         </div>
         <div class="pc-sub">${sub}</div>
         ${entries.length > 1 ? `<div class="pc-bars">${entries.map((e, i) => {
           const n = e.supermercado || "Desconocido";
-          const diff = e.precio - best.precio;
+          const comparable = !byUnit || e._byUnit;
+          const diff = comparable ? val(e) - val(best) : 0;
+          const detail = byUnit ? `${fmtEur(e.precio)}${medidaText(e) ? " · " + medidaText(e) : ""}` : "";
+          const dateTxt = comparable
+            ? (i === 0 ? relDate(e) : "+" + fmtVal(diff).replace(" €", "") + " · " + relDate(e))
+            : "sin medida · " + relDate(e);
           return `<div class="bar-row${i === 0 ? " best" : ""}${n === priceStoreFilter ? " focus" : ""}">
             <div class="bar-store"><span class="store-dot" style="--sc:${storeColor(n)}"></span><span>${escapeHtml(n)}</span></div>
-            <div class="bar-track"><div class="bar-fill" style="--w:${Math.max(6, Math.round((e.precio / max) * 100))}%"></div></div>
-            <div class="bar-price"><b>${fmtEur(e.precio)}</b><small>${i === 0 ? relDate(e) : "+" + fmtEur(diff).replace(" €", "") + " € · " + relDate(e)}</small></div>
+            <div class="bar-track">${comparable ? `<div class="bar-fill" style="--w:${Math.max(6, Math.round((val(e) / max) * 100))}%"></div>` : ""}</div>
+            <div class="bar-price"><b>${comparable ? fmtVal(val(e)) : fmtEur(e.precio)}</b><small>${detail ? detail + " · " : ""}${dateTxt}</small></div>
           </div>`;
         }).join("")}</div>` : ""}`;
 
