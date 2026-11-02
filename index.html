@@ -584,49 +584,98 @@
   @media (pointer: coarse) { .cat-select { font-size: 16px; padding: 4px 28px 4px 12px; } }
 
   /* =====================================================================
-     PRECIOS — el producto manda, el supermercado acompaña
+     PRECIOS — tarjetas con barras comparativas
      ===================================================================== */
+  #viewPrecios { display: flex; flex-direction: column; gap: 12px; }
+  #viewPrecios.hidden { display: none; }
   #preciosList { display: flex; flex-direction: column; gap: 12px; }
   #viewPrecios .empty-msg { padding-top: 28px; }
 
-  .price-group {
-    background: var(--surface);
-    border: 1px solid var(--line);
-    border-radius: 18px;
-    padding: 14px 14px 8px;
-    box-shadow: var(--shadow-1);
+  .price-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .stat-tile {
+    background: var(--surface); border: 1px solid var(--line); border-radius: 16px;
+    padding: 10px 12px; box-shadow: var(--shadow-1); min-width: 0;
   }
-  .price-product-name {
-    margin-bottom: 10px;
-    font-family: 'Plus Jakarta Sans', sans-serif;
-    font-size: 1.05rem;
-    font-weight: 700;
-    letter-spacing: -0.01em;
-    color: var(--ink);
+  .stat-tile b {
+    display: block; font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: 1.25rem; font-weight: 800; letter-spacing: -0.02em; color: var(--ink);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
-  .price-winner {
-    display: flex; align-items: center; gap: 8px;
-    padding: 10px 12px;
-    border-radius: 12px;
-    background: var(--gold-soft);
-    color: var(--gold);
-    font-size: 0.88rem;
-    font-weight: 700;
-  }
-  .price-winner-amount { margin-left: auto; font-size: 1.05rem; font-weight: 800; }
-  .price-winner-date { font-size: 0.72rem; font-weight: 600; opacity: 0.8; }
+  .stat-tile span { display: block; margin-top: 1px; font-size: 0.7rem; font-weight: 600; color: var(--ink-3); line-height: 1.25; }
+  .stat-tile.hl { background: var(--brand-soft); border-color: transparent; }
+  .stat-tile.hl b { color: var(--brand-ink); }
 
-  .price-others { margin-top: 4px; }
-  .price-row {
-    display: flex; align-items: center; gap: 8px;
-    padding: 7px 12px;
-    font-size: 0.84rem;
-    color: var(--ink-3);
+  .price-toolbar { display: flex; flex-direction: column; gap: 10px; }
+  .seg {
+    display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 2px;
+    padding: 3px; border-radius: 12px; background: var(--surface-2);
   }
-  .price-row .store { color: var(--ink-2); font-weight: 600; }
-  .price-row .leader { display: block; flex: 1; min-width: 8px; margin-bottom: 3px; border-bottom: 1px dotted var(--line-strong); }
-  .price-row .price { color: var(--ink-2); font-weight: 600; }
-  .price-row .date { font-size: 0.72rem; }
+  .seg button {
+    border: 0; background: transparent; padding: 8px 6px; border-radius: 9px;
+    font: inherit; font-size: 0.8rem; font-weight: 700; color: var(--ink-3); cursor: pointer;
+  }
+  .seg button.on { background: var(--surface); color: var(--ink); box-shadow: var(--shadow-1); }
+  @media (prefers-color-scheme: dark) { .seg button.on { background: var(--surface-2); outline: 1px solid var(--line-strong); } .seg { background: var(--bg, #0d1511); } }
+
+  .store-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; flex: 0 0 auto; background: var(--sc, var(--ink-3)); }
+  .chip .store-dot { margin-right: 6px; }
+
+  .pcard {
+    background: var(--surface); border: 1px solid var(--line); border-radius: 20px;
+    padding: 14px; box-shadow: var(--shadow-1);
+    animation: pcardIn .28s ease both;
+  }
+  @keyframes pcardIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+  .pc-head { display: flex; align-items: flex-start; gap: 10px; }
+  .pc-title { flex: 1; min-width: 0; }
+  .pc-name {
+    font-family: 'Plus Jakarta Sans', sans-serif; font-size: 1.02rem; font-weight: 700;
+    letter-spacing: -0.01em; color: var(--ink); line-height: 1.25; overflow-wrap: anywhere;
+  }
+  .pc-cat { margin-top: 2px; font-size: 0.72rem; font-weight: 600; color: var(--ink-3); }
+  .pc-add {
+    flex: 0 0 auto; width: 38px; height: 38px; border-radius: 50%;
+    border: 1px solid var(--line-strong); background: var(--surface); color: var(--brand-ink);
+    display: grid; place-items: center; cursor: pointer; padding: 0;
+  }
+  .pc-add svg { width: 18px; height: 18px; }
+  .pc-add:active { transform: scale(0.94); }
+  .pc-add.in { background: var(--brand-soft); border-color: transparent; cursor: default; }
+
+  .pc-best { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; margin-top: 10px; }
+  .pc-amount {
+    font-family: 'Plus Jakarta Sans', sans-serif; font-size: 1.75rem; font-weight: 800;
+    letter-spacing: -0.03em; color: var(--ink); line-height: 1;
+  }
+  .store-pill {
+    display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px 4px 8px;
+    border-radius: var(--r-pill); background: var(--surface-2);
+    font-size: 0.8rem; font-weight: 700; color: var(--ink-2);
+  }
+  .save-badge {
+    margin-left: auto; padding: 4px 10px; border-radius: var(--r-pill);
+    background: var(--brand-soft); color: var(--brand-ink); font-size: 0.74rem; font-weight: 800;
+  }
+  .pc-sub { margin-top: 6px; font-size: 0.76rem; color: var(--ink-3); }
+
+  .pc-bars { margin-top: 12px; display: flex; flex-direction: column; gap: 9px; padding-top: 12px; border-top: 1px solid var(--line); }
+  .bar-row { display: grid; grid-template-columns: minmax(78px, 32%) 1fr auto; align-items: center; gap: 10px; }
+  .bar-store { display: flex; align-items: center; gap: 6px; min-width: 0; font-size: 0.82rem; font-weight: 600; color: var(--ink-2); }
+  .bar-store span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .bar-track { height: 8px; border-radius: 99px; background: var(--surface-2); overflow: hidden; }
+  .bar-fill {
+    height: 100%; width: var(--w); border-radius: 99px; transform-origin: left;
+    background: color-mix(in srgb, var(--ink-3) 55%, transparent);
+    animation: barGrow .5s cubic-bezier(.2,.7,.2,1) both;
+  }
+  .bar-row.best .bar-fill { background: var(--brand); }
+  @keyframes barGrow { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+  .bar-price { text-align: right; line-height: 1.15; }
+  .bar-price b { display: block; font-size: 0.86rem; font-weight: 800; color: var(--ink); }
+  .bar-row.best .bar-price b { color: var(--brand-ink); }
+  .bar-price small { font-size: 0.68rem; color: var(--ink-3); font-weight: 600; }
+  .bar-row.focus .bar-store { color: var(--ink); font-weight: 800; }
+  @media (prefers-reduced-motion: reduce) { .pcard, .bar-fill { animation: none; } }
 
   /* =====================================================================
      BOTONES GENERALES
@@ -961,9 +1010,19 @@
 
   <!-- ============================ PRECIOS ============================ -->
   <div id="viewPrecios" class="hidden">
-    <input type="text" id="preciosSearch" class="search-input" placeholder="Buscar producto" />
+    <div class="price-stats" id="priceStats"></div>
+    <div class="price-toolbar">
+      <input type="text" id="preciosSearch" class="search-input" placeholder="Buscar producto" />
+      <div class="chip-row" id="priceStoreChips"></div>
+      <div class="seg" id="priceSort">
+        <button type="button" data-sort="az" class="on">A–Z</button>
+        <button type="button" data-sort="ahorro">Mayor ahorro</button>
+        <button type="button" data-sort="reciente">Recientes</button>
+      </div>
+    </div>
     <div id="preciosList"></div>
     <div id="preciosEmpty" class="empty-msg">Todavía no hay precios guardados. Escanea un ticket para empezar a comparar.</div>
+  </div>
   </div>
 </main>
 
@@ -1243,6 +1302,7 @@
     doneCount.textContent = doneItems.length;
     pendingEmpty.style.display = pendingItems.length === 0 ? "block" : "none";
     doneEmpty.style.display = doneItems.length === 0 ? "block" : "none";
+    if (typeof renderPreciosView === "function") renderPreciosView();
   }, (err) => {
     console.error(err);
     showToast(`No se pudo conectar: ${err.code || err.message}`, 6000);
@@ -2124,77 +2184,170 @@ Clasifica CADA producto de la lista en una de estas categorías exactas: ${CATEG
     rerenderItemList();
   }, (err) => console.error(err));
 
+  let priceStoreFilter = "";
+  let priceSort = "az";
+
+  const fmtEur = (n) => n.toFixed(2).replace(".", ",") + " €";
+  const stripAccents = (t) => (t || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+  function storeColor(name) {
+    let h = 0;
+    for (const ch of String(name)) h = (h * 31 + ch.charCodeAt(0)) % 360;
+    return `hsl(${h} 55% 48%)`;
+  }
+  function priceTime(e) { return e && e.fecha && e.fecha.toDate ? e.fecha.toDate().getTime() : 0; }
+  function relDate(e) {
+    const t = priceTime(e);
+    if (!t) return "";
+    const days = Math.floor((Date.now() - t) / 86400000);
+    if (days <= 0) return "hoy";
+    if (days === 1) return "ayer";
+    if (days < 14) return `hace ${days} días`;
+    if (days < 60) return `hace ${Math.round(days / 7)} sem.`;
+    return new Date(t).toLocaleDateString("es-ES", { day: "numeric", month: "short", year: "2-digit" });
+  }
+
   function renderPreciosView() {
     const listEl = document.getElementById("preciosList");
     const emptyEl = document.getElementById("preciosEmpty");
-    const filter = (document.getElementById("preciosSearch").value || "").trim().toLowerCase();
+    const statsEl = document.getElementById("priceStats");
+    const chipsEl = document.getElementById("priceStoreChips");
+    const filter = stripAccents(document.getElementById("preciosSearch").value || "").trim();
     listEl.innerHTML = "";
 
-    // Solo necesitamos, por cada producto, su nombre y su clave — el
-    // desglose por tienda lo da getLatestPricesByStore (ya deduplicado por
-    // fecha más reciente), así que aquí solo recogemos qué productos
-    // existen y con qué nombre mostrarlos.
+    // Productos con algún precio (nombre más reciente de cada clave).
     const productos = {};
     preciosCache.forEach((p) => {
       if (typeof p.precio !== "number") return;
-      if (filter && !(p.nombre || "").toLowerCase().includes(filter)) return;
-      const pTime = p.fecha && p.fecha.toDate ? p.fecha.toDate().getTime() : 0;
+      const pTime = priceTime(p);
       const current = productos[p.clave];
-      if (!current || pTime >= current.time) productos[p.clave] = { nombre: p.nombre, time: pTime };
+      if (!current || pTime >= current.time) productos[p.clave] = { nombre: p.nombre || p.clave, time: pTime };
     });
 
-    // Ordenamos los productos alfabéticamente, para que sean fáciles de
-    // encontrar cuando hay muchos.
-    const claves = Object.keys(productos).sort((a, b) => productos[a].nombre.localeCompare(productos[b].nombre, "es"));
-    emptyEl.style.display = claves.length === 0 ? "block" : "none";
-
-    claves.forEach((clave) => {
+    // Datos por producto: precio más reciente por súper (ya ordenado barato→caro).
+    const all = Object.keys(productos).map((clave) => {
       const entries = getLatestPricesByStore(clave);
-      if (!entries.length) return;
-      const winner = entries[0];
-      const others = entries.slice(1);
+      const best = entries[0];
+      const worst = entries[entries.length - 1];
+      return {
+        clave, nombre: productos[clave].nombre, entries,
+        saving: entries.length > 1 ? worst.precio - best.precio : 0,
+        latest: Math.max(0, ...entries.map(priceTime))
+      };
+    }).filter((x) => x.entries.length);
 
-      const wrap = document.createElement("div");
-      wrap.className = "price-group";
+    // Resumen superior y chips de supermercados (sobre todos los productos).
+    const stores = {};
+    const wins = {};
+    all.forEach((x) => {
+      x.entries.forEach((e) => { const n = e.supermercado || "Desconocido"; stores[n] = (stores[n] || 0) + 1; });
+      if (x.entries.length > 1) { const n = x.entries[0].supermercado || "Desconocido"; wins[n] = (wins[n] || 0) + 1; }
+    });
+    const storeNames = Object.keys(stores).sort((a, b) => stores[b] - stores[a]);
+    if (priceStoreFilter && !stores[priceStoreFilter]) priceStoreFilter = "";
+    const topWinner = Object.keys(wins).sort((a, b) => wins[b] - wins[a])[0];
+    const totalSaving = all.reduce((t, x) => t + x.saving, 0);
+    statsEl.innerHTML = all.length ? `
+      <div class="stat-tile"><b>${all.length}</b><span>productos con precio</span></div>
+      <div class="stat-tile"><b>${storeNames.length}</b><span>supermercados</span></div>
+      ${topWinner
+        ? `<div class="stat-tile hl"><b>${escapeHtml(topWinner)}</b><span>más barato en ${wins[topWinner]} producto${wins[topWinner] === 1 ? "" : "s"}</span></div>`
+        : `<div class="stat-tile"><b>—</b><span>compara con 2+ súpers</span></div>`}` : "";
+    statsEl.style.display = all.length ? "grid" : "none";
 
-      const title = document.createElement("div");
-      title.className = "price-product-name";
-      title.textContent = productos[clave].nombre;
-      wrap.appendChild(title);
+    chipsEl.innerHTML = "";
+    if (storeNames.length > 0) {
+      const mk = (label, value, color) => {
+        const b = document.createElement("button");
+        b.type = "button";
+        b.className = "chip" + (priceStoreFilter === value ? " active-tool" : "");
+        b.innerHTML = (color ? `<span class="store-dot" style="--sc:${color}"></span>` : "") + escapeHtml(label);
+        b.addEventListener("click", () => { priceStoreFilter = value; renderPreciosView(); });
+        chipsEl.appendChild(b);
+      };
+      mk("Todos", "");
+      storeNames.forEach((n) => mk(n, n, storeColor(n)));
+    }
+    chipsEl.style.display = storeNames.length > 1 ? "flex" : "none";
+    document.querySelectorAll("#priceSort button").forEach((b) => b.classList.toggle("on", b.dataset.sort === priceSort));
+    document.getElementById("priceSort").style.display = all.length > 1 ? "grid" : "none";
 
-      const winnerRow = document.createElement("div");
-      winnerRow.className = "price-winner";
-      const fecha = winner.fecha && winner.fecha.toDate ? winner.fecha.toDate().toLocaleDateString("es-ES") : "";
-      winnerRow.innerHTML = `
-        <span>⭐ ${escapeHtml(winner.supermercado || "Desconocido")}</span>
-        <span class="price-winner-amount">${winner.precio.toFixed(2)} €</span>
-        <span class="price-winner-date">${fecha}</span>
-      `;
-      wrap.appendChild(winnerRow);
+    // Filtros y orden.
+    let rows = all.filter((x) =>
+      (!filter || stripAccents(x.nombre).includes(filter)) &&
+      (!priceStoreFilter || x.entries.some((e) => (e.supermercado || "Desconocido") === priceStoreFilter)));
+    if (priceSort === "ahorro") rows.sort((a, b) => b.saving - a.saving || a.nombre.localeCompare(b.nombre, "es"));
+    else if (priceSort === "reciente") rows.sort((a, b) => b.latest - a.latest);
+    else rows.sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
 
-      if (others.length > 0) {
-        const othersWrap = document.createElement("div");
-        othersWrap.className = "price-others";
-        others.forEach((e) => {
-          const fechaOtro = e.fecha && e.fecha.toDate ? e.fecha.toDate().toLocaleDateString("es-ES") : "";
-          const row = document.createElement("div");
-          row.className = "price-row";
-          row.innerHTML = `
-            <span class="store">${escapeHtml(e.supermercado || "Desconocido")}</span>
-            <span class="leader"></span>
-            <span class="price">${e.precio.toFixed(2)} €</span>
-            <span class="date">${fechaOtro}</span>
-          `;
-          othersWrap.appendChild(row);
-        });
-        wrap.appendChild(othersWrap);
-      }
+    emptyEl.style.display = rows.length === 0 ? "block" : "none";
+    emptyEl.textContent = all.length === 0
+      ? "Todavía no hay precios guardados. Escanea un ticket para empezar a comparar."
+      : "No hay productos que coincidan con ese filtro.";
 
-      listEl.appendChild(wrap);
+    const pendingKeys = new Set(currentItemsCache.filter((it) => !it.checked).map((it) => it.clave));
+
+    rows.forEach((x, idx) => {
+      const { entries } = x;
+      const best = entries[0];
+      const bestStore = best.supermercado || "Desconocido";
+      const worst = entries[entries.length - 1];
+      const max = worst.precio || 1;
+      const cat = (catalogoCache.find((c) => c.clave === x.clave) || {}).categoria || "";
+      const inList = pendingKeys.has(x.clave);
+
+      const card = document.createElement("article");
+      card.className = "pcard";
+      card.style.animationDelay = Math.min(idx, 8) * 25 + "ms";
+
+      const pct = entries.length > 1 && worst.precio > 0 ? Math.round((x.saving / worst.precio) * 100) : 0;
+      const sub = entries.length > 1
+        ? `Mejor precio · ${relDate(best)} · ${entries.length} supermercados`
+        : `Solo visto en ${escapeHtml(bestStore)} · ${relDate(best)}`;
+
+      card.innerHTML = `
+        <div class="pc-head">
+          <div class="pc-title">
+            <div class="pc-name">${escapeHtml(x.nombre)}</div>
+            ${cat ? `<div class="pc-cat">${escapeHtml(cat)}</div>` : ""}
+          </div>
+          <button type="button" class="pc-add${inList ? " in" : ""}" ${inList ? 'disabled aria-label="Ya está en la lista" title="Ya está en la lista"' : 'aria-label="Añadir a la lista" title="Añadir a la lista"'}>
+            ${inList
+              ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 5 5 9-10"/></svg>'
+              : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>'}
+          </button>
+        </div>
+        <div class="pc-best">
+          <span class="pc-amount">${fmtEur(best.precio)}</span>
+          <span class="store-pill"><span class="store-dot" style="--sc:${storeColor(bestStore)}"></span>${escapeHtml(bestStore)}</span>
+          ${x.saving > 0.004 ? `<span class="save-badge">Ahorras ${fmtEur(x.saving)}${pct ? ` · ${pct}%` : ""}</span>` : ""}
+        </div>
+        <div class="pc-sub">${sub}</div>
+        ${entries.length > 1 ? `<div class="pc-bars">${entries.map((e, i) => {
+          const n = e.supermercado || "Desconocido";
+          const diff = e.precio - best.precio;
+          return `<div class="bar-row${i === 0 ? " best" : ""}${n === priceStoreFilter ? " focus" : ""}">
+            <div class="bar-store"><span class="store-dot" style="--sc:${storeColor(n)}"></span><span>${escapeHtml(n)}</span></div>
+            <div class="bar-track"><div class="bar-fill" style="--w:${Math.max(6, Math.round((e.precio / max) * 100))}%"></div></div>
+            <div class="bar-price"><b>${fmtEur(e.precio)}</b><small>${i === 0 ? relDate(e) : "+" + fmtEur(diff).replace(" €", "") + " € · " + relDate(e)}</small></div>
+          </div>`;
+        }).join("")}</div>` : ""}`;
+
+      const addBtn = card.querySelector(".pc-add");
+      if (!inList) addBtn.addEventListener("click", () => {
+        addBtn.disabled = true;
+        addItemToList(x.nombre, "", getUserName() + " (precios)");
+      });
+      listEl.appendChild(card);
     });
   }
 
   document.getElementById("preciosSearch").addEventListener("input", renderPreciosView);
+  document.getElementById("priceSort").addEventListener("click", (ev) => {
+    const b = ev.target.closest("button[data-sort]");
+    if (!b) return;
+    priceSort = b.dataset.sort;
+    renderPreciosView();
+  });
 
   // ---------------------------------------------------------------------
   // 9) Aviso pequeño (toast)
