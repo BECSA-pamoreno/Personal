@@ -708,6 +708,38 @@
     cursor: pointer;
   }
 
+  .catalogo-row .del-btn {
+    flex: 0 0 38px; width: 38px; height: 38px; border: 0; border-radius: 50%;
+    background: transparent; color: var(--ink-3);
+    display: grid; place-items: center; cursor: pointer; padding: 0;
+  }
+  .catalogo-row .del-btn svg { width: 18px; height: 18px; }
+  .catalogo-row .del-btn:active { transform: scale(0.92); color: #C0392B; }
+  @media (hover: hover) { .catalogo-row .del-btn:hover { color: #C0392B; background: color-mix(in srgb, #C0392B 10%, transparent); } }
+
+  .manual-price-btn {
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    width: 100%; padding: 12px; border-radius: 14px; cursor: pointer;
+    border: 1.5px dashed var(--line-strong); background: transparent;
+    font: inherit; font-size: 0.9rem; font-weight: 700; color: var(--brand-ink);
+  }
+  .manual-price-btn svg { width: 16px; height: 16px; }
+  .manual-price-btn:active { transform: scale(0.99); }
+  .pc-addprice {
+    display: inline-flex; align-items: center; gap: 6px; margin-top: 12px; padding: 6px 2px;
+    border: 0; background: none; cursor: pointer; font: inherit; font-size: 0.8rem; font-weight: 700; color: var(--brand-ink);
+  }
+  .modal label.fl { display: block; margin: 0 0 6px 2px; font-size: 0.78rem; font-weight: 700; color: var(--ink-2); }
+  .modal .two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .modal .unit-preview { min-height: 1.2em; margin: -4px 0 12px 2px; font-size: 0.82rem; font-weight: 800; color: var(--brand-ink); }
+  .modal .check-line { display: flex; align-items: center; gap: 10px; margin: 0 0 16px; font-size: 0.9rem; font-weight: 600; color: var(--ink-2); }
+  .modal .check-line input { width: 20px; height: 20px; accent-color: var(--brand); flex: 0 0 auto; }
+  .danger-btn {
+    display: block; width: 100%; padding: 15px; border: 0; border-radius: var(--r-ctl);
+    background: #C0392B; color: #fff; font: inherit; font-size: 1rem; font-weight: 800; cursor: pointer;
+  }
+  .danger-btn:disabled { opacity: .6; }
+
   /* botón flotante "Fusionar N productos" dentro del catálogo */
   #mergeBar {
     position: sticky;
@@ -1022,6 +1054,10 @@
   <!-- ============================ PRECIOS ============================ -->
   <div id="viewPrecios" class="hidden">
     <div class="price-stats" id="priceStats"></div>
+    <button type="button" class="manual-price-btn" id="manualPriceBtn">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+      Añadir un precio a mano
+    </button>
     <div class="price-toolbar">
       <input type="text" id="preciosSearch" class="search-input" placeholder="Buscar producto" />
       <div class="chip-row" id="priceStoreChips"></div>
@@ -1049,6 +1085,44 @@
     <p class="hint">Así sabemos quién añadió cada cosa a la lista.</p>
     <input type="text" id="nameInput" placeholder="Tu nombre" />
     <button class="primary-btn" id="nameSaveBtn">Guardar</button>
+  </div>
+</div>
+
+<!-- Modal: añadir un precio a mano -->
+<div class="modal-overlay hidden" id="priceModalOverlay">
+  <div class="modal">
+    <h2>Añadir precio</h2>
+    <p class="hint">Para cuando no tienes ticket o la IA no ha leído bien. Se guarda como el precio más reciente de ese súper.</p>
+    <label class="fl" for="pmProduct">Producto</label>
+    <input type="text" id="pmProduct" list="pmProductList" placeholder="Ej. Huevos" autocomplete="off" />
+    <datalist id="pmProductList"></datalist>
+    <label class="fl" for="pmStore">Supermercado</label>
+    <input type="text" id="pmStore" list="pmStoreList" placeholder="Ej. Lidl" autocomplete="off" />
+    <datalist id="pmStoreList"></datalist>
+    <div class="two">
+      <div>
+        <label class="fl" for="pmPrice">Precio (€)</label>
+        <input type="text" id="pmPrice" inputmode="decimal" placeholder="5,00" autocomplete="off" />
+      </div>
+      <div>
+        <label class="fl" for="pmMeasure">Medida (opcional)</label>
+        <input type="text" id="pmMeasure" placeholder="24 ud, 500 g, 1 l" autocomplete="off" />
+      </div>
+    </div>
+    <div class="unit-preview" id="pmPreview"></div>
+    <button class="primary-btn" id="pmSaveBtn">Guardar precio</button>
+    <button class="secondary-btn" id="pmCancelBtn">Cancelar</button>
+  </div>
+</div>
+
+<!-- Modal: eliminar producto del catálogo -->
+<div class="modal-overlay hidden" id="delModalOverlay">
+  <div class="modal">
+    <h2 id="delTitle">Eliminar producto</h2>
+    <p class="hint">Se quitará del catálogo. Si lo tienes pendiente en la lista de la compra, seguirá ahí hasta que lo borres.</p>
+    <label class="check-line" id="delPricesWrap"><input type="checkbox" id="delPrices" checked /> <span>Borrar también su historial de precios</span></label>
+    <button class="danger-btn" id="delConfirmBtn">Eliminar</button>
+    <button class="secondary-btn" id="delCancelBtn">Cancelar</button>
   </div>
 </div>
 
@@ -2112,6 +2186,14 @@ Clasifica CADA producto de la lista en una de estas categorías exactas: ${CATEG
           addBtn.textContent = "+";
           addBtn.title = "Añadir a la lista";
           addBtn.addEventListener("click", () => addItemToList(p.nombre, "", getUserName() + " (catálogo)"));
+          const delBtn = document.createElement("button");
+          delBtn.className = "del-btn";
+          delBtn.type = "button";
+          delBtn.title = "Eliminar del catálogo";
+          delBtn.setAttribute("aria-label", `Eliminar ${p.nombre || "producto"} del catálogo`);
+          delBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/></svg>';
+          delBtn.addEventListener("click", () => openDeleteProduct(p));
+          row.appendChild(delBtn);
           row.appendChild(addBtn);
         }
 
@@ -2453,7 +2535,9 @@ Clasifica CADA producto de la lista en una de estas categorías exactas: ${CATEG
             <div class="bar-track">${comparable ? `<div class="bar-fill" style="--w:${Math.max(6, Math.round((val(e) / max) * 100))}%"></div>` : ""}</div>
             <div class="bar-price"><b>${comparable ? fmtVal(val(e)) : fmtEur(e.precio)}</b><small>${detail ? detail + " · " : ""}${dateTxt}</small></div>
           </div>`;
-        }).join("")}</div>` : ""}`;
+        }).join("")}</div>` : ""}
+        <button type="button" class="pc-addprice">＋ Añadir otro precio</button>`;
+      card.querySelector(".pc-addprice").addEventListener("click", () => openPriceModal(x.nombre));
 
       const addBtn = card.querySelector(".pc-add");
       if (!inList) addBtn.addEventListener("click", () => {
@@ -2465,6 +2549,132 @@ Clasifica CADA producto de la lista en una de estas categorías exactas: ${CATEG
   }
 
   document.getElementById("preciosSearch").addEventListener("input", renderPreciosView);
+
+  // ---------------------------------------------------------------------
+  // Añadir un precio a mano (por si la IA no lee bien el ticket o no hay ticket)
+  // ---------------------------------------------------------------------
+  const priceModal = document.getElementById("priceModalOverlay");
+  const pmProduct = document.getElementById("pmProduct");
+  const pmStore = document.getElementById("pmStore");
+  const pmPrice = document.getElementById("pmPrice");
+  const pmMeasure = document.getElementById("pmMeasure");
+  const pmPreview = document.getElementById("pmPreview");
+  const pmSave = document.getElementById("pmSaveBtn");
+
+  function parsePrice(txt) {
+    const n = parseFloat(String(txt || "").replace("€", "").replace(/\s/g, "").replace(",", "."));
+    return isFinite(n) && n > 0 ? Math.round(n * 100) / 100 : null;
+  }
+  function openPriceModal(productName) {
+    document.getElementById("pmProductList").innerHTML = catalogoCache.map((c) => `<option value="${escapeHtml(c.nombre || "")}">`).join("");
+    const stores = [...new Set(preciosCache.map((x) => x.supermercado).filter(Boolean))];
+    document.getElementById("pmStoreList").innerHTML = stores.map((n) => `<option value="${escapeHtml(n)}">`).join("");
+    pmProduct.value = productName || "";
+    pmStore.value = priceStoreFilter || "";
+    pmPrice.value = "";
+    pmMeasure.value = "";
+    pmPreview.textContent = "";
+    pmSave.disabled = false;
+    pmSave.textContent = "Guardar precio";
+    priceModal.classList.remove("hidden");
+    setTimeout(() => (productName ? pmStore.value ? pmPrice : pmStore : pmProduct).focus(), 150);
+  }
+  function refreshPmPreview() {
+    const price = parsePrice(pmPrice.value);
+    const m = parseMedida(pmMeasure.value);
+    if (price && m) pmPreview.textContent = "= " + unitPriceText({ precioUnitario: price / m.cantidadBase, unidadBase: m.unidadBase, cantidadBase: m.cantidadBase });
+    else if (pmMeasure.value.trim() && !m) pmPreview.textContent = "no entiendo esa medida";
+    else pmPreview.textContent = "";
+  }
+  pmPrice.addEventListener("input", refreshPmPreview);
+  pmMeasure.addEventListener("input", refreshPmPreview);
+  document.getElementById("manualPriceBtn").addEventListener("click", () => openPriceModal(""));
+  document.getElementById("pmCancelBtn").addEventListener("click", () => priceModal.classList.add("hidden"));
+  priceModal.addEventListener("click", (e) => { if (e.target === priceModal) priceModal.classList.add("hidden"); });
+
+  pmSave.addEventListener("click", async () => {
+    const rawName = pmProduct.value.trim();
+    const store = pmStore.value.trim();
+    const price = parsePrice(pmPrice.value);
+    if (!rawName) { showToast("Escribe el producto"); pmProduct.focus(); return; }
+    if (!store) { showToast("Escribe el supermercado"); pmStore.focus(); return; }
+    if (!price) { showToast("Pon un precio válido, por ejemplo 2,49"); pmPrice.focus(); return; }
+    let m = null;
+    if (pmMeasure.value.trim()) {
+      m = parseMedida(pmMeasure.value);
+      if (!m) { showToast("No entiendo esa medida. Prueba con 24 ud, 500 g o 1 l"); pmMeasure.focus(); return; }
+    }
+    // Si el nombre coincide (sin tildes/mayúsculas) con uno del catálogo, usamos ese.
+    const { clave, nombre } = resolveProduct(rawName);
+    if (!clave) { showToast("Ese nombre no es válido"); return; }
+    const known = catalogoCache.find((c) => c.clave === clave);
+    pmSave.disabled = true;
+    pmSave.textContent = "Guardando…";
+    try {
+      const batch = writeBatch(db);
+      batch.set(doc(preciosRef), {
+        clave,
+        nombre: (known && known.nombre) || nombre,
+        supermercado: store,
+        precio: price,
+        ...(m ? { cantidadBase: m.cantidadBase, unidadBase: m.unidadBase, precioUnitario: Math.round((price / m.cantidadBase) * 10000) / 10000 } : {}),
+        fecha: serverTimestamp()
+      });
+      if (!known) {
+        batch.set(doc(db, "catalogo", clave), { nombre, clave, categoria: "Otros", updatedAt: serverTimestamp() }, { merge: true });
+      }
+      await batch.commit();
+      priceModal.classList.add("hidden");
+      showToast(`Precio guardado: ${nombre} en ${store}`);
+    } catch (err) {
+      console.error("Error al guardar precio manual:", err);
+      pmSave.disabled = false;
+      pmSave.textContent = "Guardar precio";
+      showToast(`No se pudo guardar: ${err.code || err.message || "error desconocido"}`, 6000);
+    }
+  });
+
+  // ---------------------------------------------------------------------
+  // Eliminar un producto del catálogo
+  // ---------------------------------------------------------------------
+  const delModal = document.getElementById("delModalOverlay");
+  let deletingProduct = null;
+  function openDeleteProduct(prod) {
+    deletingProduct = prod;
+    document.getElementById("delTitle").textContent = `Eliminar «${prod.nombre || "producto"}»`;
+    const hasPrices = preciosCache.some((x) => x.clave === prod.clave);
+    document.getElementById("delPricesWrap").style.display = hasPrices ? "flex" : "none";
+    document.getElementById("delPrices").checked = true;
+    const btn = document.getElementById("delConfirmBtn");
+    btn.disabled = false; btn.textContent = "Eliminar";
+    delModal.classList.remove("hidden");
+  }
+  document.getElementById("delCancelBtn").addEventListener("click", () => delModal.classList.add("hidden"));
+  delModal.addEventListener("click", (e) => { if (e.target === delModal) delModal.classList.add("hidden"); });
+  document.getElementById("delConfirmBtn").addEventListener("click", async () => {
+    if (!deletingProduct) return;
+    const btn = document.getElementById("delConfirmBtn");
+    const { clave, nombre } = deletingProduct;
+    btn.disabled = true; btn.textContent = "Eliminando…";
+    try {
+      const batch = writeBatch(db);
+      batch.delete(doc(db, "catalogo", clave));
+      if (document.getElementById("delPrices").checked) {
+        preciosCache.filter((x) => x.clave === clave).forEach((x) => batch.delete(doc(db, "precios", x.id)));
+      }
+      // Quitamos también las fusiones que lo mencionan, para que no reaparezca.
+      Object.entries(fusionesCache).forEach(([id, f]) => {
+        if (id === clave || (f && f.canonClave === clave)) batch.delete(doc(db, "fusiones", id));
+      });
+      await batch.commit();
+      delModal.classList.add("hidden");
+      showToast(`«${nombre}» eliminado del catálogo`);
+    } catch (err) {
+      console.error("Error al eliminar:", err);
+      btn.disabled = false; btn.textContent = "Eliminar";
+      showToast(`No se pudo eliminar: ${err.code || err.message || "error desconocido"}`, 6000);
+    }
+  });
   document.getElementById("priceSort").addEventListener("click", (ev) => {
     const b = ev.target.closest("button[data-sort]");
     if (!b) return;
